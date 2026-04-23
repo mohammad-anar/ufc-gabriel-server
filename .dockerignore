@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+.pnpm-store
+dist
+.git
+.env
+# Git
+.git
+.gitignore
+
+# Environment files (never bundle secrets)
+.env
+.env.*
+!.env.example
+!.example.env
+
+# TypeScript source (removed src from ignore because we need it for builder stage)
+
+
+
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Uploads & temp (mounted as volumes)
+uploads
+tmp
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs & misc
+README.md
+instructions.md
+*.md

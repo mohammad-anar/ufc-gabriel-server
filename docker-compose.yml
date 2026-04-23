@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    container_name: azanmunir-app
+    ports:
+      - "4000:4000"
+      - "5555:5555"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
+    image: postgis/postgis:15-3.3-alpine
+    container_name: azanmunir-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: azanmunirfixmincykelpassword
+      POSTGRES_DB: azanmunir
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d azanmunir"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: azanmunir-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
