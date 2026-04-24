@@ -4,6 +4,7 @@ import { UserValidation } from "./user.validation.js";
 import auth from "../../middlewares/auth.js";
 import validateRequest from "../../middlewares/validateRequest.js";
 import { Role } from "../../../types/enum.js";
+import fileUploadHandler from "../../middlewares/fileUploadHandler.js";
 
 const router = express.Router();
 
@@ -24,16 +25,37 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/RegisterBody'
+ *             type: object
+ *             required: [data]
+ *             properties:
+ *               data:
+ *                 type: string
+ *                 description: JSON stringified payload matching RegisterBody
+ *                 example: '{"name": "John Doe", "username": "johndoe", "email": "john@example.com", "password": "Password123!", "phone": "1234567890", "bio": "MMA Fan"}'
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image upload
  *     responses:
  *       201:
  *         description: Registration successful, OTP sent to email
  *       409:
  *         description: Email or username already taken
  */
-router.post("/register", validateRequest(UserValidation.createUserZodSchema), UserController.createUser);
+router.post(
+  "/register",
+  fileUploadHandler(),
+  (req, res, next) => {
+    if (req.body.data) {
+      req.body = JSON.parse(req.body.data);
+    }
+    next();
+  },
+  validateRequest(UserValidation.createUserZodSchema),
+  UserController.createUser
+);
 
 /**
  * @swagger
@@ -206,23 +228,37 @@ router.post("/logout", auth(Role.USER, Role.ADMIN), UserController.logout);
  *     summary: Update current user profile
  *     requestBody:
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required: [data]
  *             properties:
- *               name: { type: string }
- *               username: { type: string }
- *               phone: { type: string }
- *               avatarUrl: { type: string }
- *               bio: { type: string }
- *               location: { type: string }
- *               timezone: { type: string }
+ *               data:
+ *                 type: string
+ *                 description: JSON stringified payload matching UpdateUserBody
+ *                 example: '{"name": "John Updated", "bio": "Updated bio", "location": "New York"}'
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image upload
  *     responses:
  *       200:
  *         description: Profile updated
  */
 router.get("/me", auth(Role.USER, Role.ADMIN), UserController.getMe);
-router.patch("/me", auth(Role.USER, Role.ADMIN), validateRequest(UserValidation.updateUserZodSchema), UserController.updateUser);
+router.patch(
+  "/me",
+  auth(Role.USER, Role.ADMIN),
+  fileUploadHandler(),
+  (req, res, next) => {
+    if (req.body.data) {
+      req.body = JSON.parse(req.body.data);
+    }
+    next();
+  },
+  validateRequest(UserValidation.updateUserZodSchema),
+  UserController.updateUser
+);
 
 /**
  * @swagger

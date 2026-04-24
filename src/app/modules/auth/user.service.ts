@@ -271,15 +271,15 @@ const resendOTP = async (email: string) => {
 const forgetPassword = async (email: string) => {
   const user = await prisma.user.findUnique({
     where: { email, deletedAt: null },
-    select: { id: true, name: true, email: true, isVerified: true },
+    select: { id: true, name: true, email: true, isVerified: true, role: true },
   });
   if (!user) throw new ApiError(404, "User not found");
   if (!user.isVerified) throw new ApiError(403, "Please verify your email first");
 
   const token = jwtHelper.createToken(
-    { id: user.id, email: user.email },
+    { id: user.id, name: user.name, email: user.email, role: user.role },
     config.jwt.jwt_secret as Secret,
-    "15m",
+    "5m",
   );
 
   const template = await emailTemplate.forgetPassword({ email, token });

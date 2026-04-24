@@ -4,6 +4,7 @@ import validateRequest from "../../middlewares/validateRequest.js";
 import { FighterValidation } from "./fighter.validation.js";
 import auth from "../../middlewares/auth.js";
 import { Role } from "../../../types/enum.js";
+import fileUploadHandler from "../../middlewares/fileUploadHandler.js";
 
 const router = express.Router();
 
@@ -56,9 +57,19 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/FighterBody'
+ *             type: object
+ *             required: [data]
+ *             properties:
+ *               data:
+ *                 type: string
+ *                 description: JSON stringified payload matching FighterBody
+ *                 example: '{"name": "Conor McGregor", "nationality": "Irish", "divisionId": "cm1y...", "nickname": "The Notorious", "rank": 1, "isChampion": false, "age": 35, "height": "5''9\"", "reach": "74\"", "wins": 22, "losses": 6, "draws": 0}'
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image upload
  *     responses:
  *       201:
  *         description: Fighter created
@@ -68,6 +79,13 @@ router.get("/", FighterController.getAllFighters);
 router.post(
   "/",
   auth(Role.ADMIN),
+  fileUploadHandler(),
+  (req, res, next) => {
+    if (req.body.data) {
+      req.body = JSON.parse(req.body.data);
+    }
+    next();
+  },
   validateRequest(FighterValidation.createFighterZodSchema),
   FighterController.createFighter
 );
@@ -99,9 +117,19 @@ router.post(
  *         schema: { type: string }
  *     requestBody:
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/FighterBody'
+ *             type: object
+ *             required: [data]
+ *             properties:
+ *               data:
+ *                 type: string
+ *                 description: JSON stringified payload matching UpdateFighterBody
+ *                 example: '{"rank": 2, "wins": 23, "losses": 6}'
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image upload
  *     responses:
  *       200:
  *         description: Fighter updated
@@ -122,6 +150,13 @@ router.get("/:id", FighterController.getFighterById);
 router.patch(
   "/:id",
   auth(Role.ADMIN),
+  fileUploadHandler(),
+  (req, res, next) => {
+    if (req.body.data) {
+      req.body = JSON.parse(req.body.data);
+    }
+    next();
+  },
   validateRequest(FighterValidation.updateFighterZodSchema),
   FighterController.updateFighter
 );

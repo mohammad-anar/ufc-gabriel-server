@@ -49,9 +49,7 @@ const forgetPasswordZodSchema = z.object({
 });
 
 const resetPasswordZodSchema = z.object({
-
     password: z.string().min(8),
-
 });
 
 const changePasswordZodSchema = z.object({

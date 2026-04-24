@@ -3,8 +3,14 @@ import catchAsync from "../../shared/catchAsync.js";
 import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
 import { FighterService } from "./fighter.service.js";
+import { getSingleFilePath } from "../../shared/getFilePath.js";
 
 const createFighter = catchAsync(async (req: Request, res: Response) => {
+  const avatarUrl = getSingleFilePath(req.files, "image");
+  if (avatarUrl) {
+    req.body.avatarUrl = avatarUrl;
+  }
+
   const result = await FighterService.createFighter(req.body);
   sendResponse(res, { statusCode: 201, success: true, message: "Fighter created successfully", data: result });
 });
@@ -22,6 +28,11 @@ const getFighterById = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateFighter = catchAsync(async (req: Request, res: Response) => {
+  const avatarUrl = getSingleFilePath(req.files, "image");
+  if (avatarUrl) {
+    req.body.avatarUrl = avatarUrl;
+  }
+
   const result = await FighterService.updateFighter(req.params.id, req.body);
   sendResponse(res, { statusCode: 200, success: true, message: "Fighter updated successfully", data: result });
 });

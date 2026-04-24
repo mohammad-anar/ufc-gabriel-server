@@ -4,8 +4,14 @@ import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
 import { UserService } from "./user.service.js";
 import config from "../../../config/index.js";
+import { getSingleFilePath } from "../../shared/getFilePath.js";
 
 const createUser = catchAsync(async (req: Request, res: Response) => {
+  const avatarUrl = getSingleFilePath(req.files, "image");
+  if (avatarUrl) {
+    req.body.avatarUrl = avatarUrl;
+  }
+
   const result = await UserService.createUser(req.body);
   sendResponse(res, { statusCode: 201, success: true, message: "Registration successful! Please verify your email.", data: result });
 });
@@ -28,6 +34,11 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateUser = catchAsync(async (req: Request, res: Response) => {
+  const avatarUrl = getSingleFilePath(req.files, "image");
+  if (avatarUrl) {
+    req.body.avatarUrl = avatarUrl;
+  }
+
   const result = await UserService.updateUser(req.user.id, req.body);
   sendResponse(res, { statusCode: 200, success: true, message: "Profile updated successfully", data: result });
 });
