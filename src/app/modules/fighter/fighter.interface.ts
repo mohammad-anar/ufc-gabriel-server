@@ -1,6 +1,6 @@
 export interface IFighterFilterRequest {
   searchTerm?: string;
-  division?: string;
+  divisionId?: string;
   isChampion?: boolean;
   isActive?: boolean;
 }

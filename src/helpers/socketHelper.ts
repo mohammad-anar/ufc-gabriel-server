@@ -29,6 +29,50 @@ export const initSocket = (server: any) => {
       console.log(`📋 Socket ${socket.id} joined draft room: ${leagueId}`);
     });
 
+    // Make a pick directly via Socket.IO
+    socket.on("make_pick", async (data: { leagueId: string; fighterId: string }) => {
+      try {
+        const { leagueId, fighterId } = data;
+        if (!leagueId || !fighterId) return;
+
+        // 1. Find the user ID from the socket registration mapping
+        let activeUserId: string | null = null;
+        for (const [uid, sockets] of socketMap.entries()) {
+          if (sockets.has(socket.id)) {
+            activeUserId = uid;
+            break;
+          }
+        }
+
+        if (!activeUserId) {
+          socket.emit("draft:error", { message: "Unauthenticated socket session" });
+          return;
+        }
+
+        // 2. Check Saturday Lockdown Guard & League Status
+        // We import Prisma dynamically or locally to avoid circular deps if needed
+        const { prisma } = await import("./prisma.js");
+        const systemState = await prisma.systemState.findUnique({ where: { id: 1 } });
+        if (systemState?.isLocked) {
+          socket.emit("draft:error", { message: "System is locked: UFC event in progress. Drafts are paused." });
+          return;
+        }
+
+        const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { status: true } });
+        if (league?.status === "LOCKED") {
+          socket.emit("draft:error", { message: "This specific league is currently locked." });
+          return;
+        }
+
+        // 3. Execute the pick
+        const { DraftService } = await import("../app/modules/draft/draft.service.js");
+        await DraftService.pickFighter(leagueId, activeUserId, { fighterId });
+
+      } catch (error: any) {
+        socket.emit("draft:error", { message: error.message || "Failed to make pick" });
+      }
+    });
+
     // Leave a draft room
     socket.on("leave_draft", (leagueId: string) => {
       if (!leagueId) return;

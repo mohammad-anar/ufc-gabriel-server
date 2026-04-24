@@ -10,7 +10,7 @@ const getDraftSession = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getAvailableFighters = catchAsync(async (req: Request, res: Response) => {
-  const filters = pick(req.query, ["searchTerm", "division"]);
+  const filters = pick(req.query, ["searchTerm", "divisionId"]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
   const result = await DraftService.getAvailableFighters(req.params.leagueId, filters as any, options as any);
   sendResponse(res, { statusCode: 200, success: true, message: "Available fighters retrieved successfully", data: result });

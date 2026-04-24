@@ -18,6 +18,11 @@ enum TradeStatus {
   VETOED
 }
 
+enum TradeSide {
+  SENDER_OFFERS
+  RECEIVER_OFFERS
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -37,10 +42,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  managedLeagues  League[]       @relation("LeagueManager")
+  managedLeagues    League[]       @relation("LeagueManager")
   leagueMemberships LeagueMember[]
-  teams           Team[]
-  notifications   Notification[]
+  teams             Team[]
+  notifications     Notification[]
+  tradeOffersSent   Trade[]        @relation("TradeSender")
+  tradeOffersRecv   Trade[]        @relation("TradeReceiver")
+  tradeVetos        TradeVeto[]
+  draftQueues       DraftPickQueue[]
 
   @@index([email])
   @@index([username])
@@ -48,12 +57,21 @@ model User {
   @@map("users")
 }
 
+model Division {
+  id   String @id @default(cuid())
+  name String @unique
+  
+  fighters Fighter[]
+
+  @@map("divisions")
+}
+
 model Fighter {
   id                     String   @id @default(cuid())
   name                   String
   nickname               String   @default("")
   nationality            String
-  division               String
+  divisionId             String
   rank                   Int?
   isChampion             Boolean  @default(false)
   avatarUrl              String?
@@ -73,17 +91,21 @@ model Fighter {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  division     Division @relation(fields: [divisionId], references: [id], onDelete: Restrict)
   teamFighters TeamFighter[]
   boutFighters BoutFighter[]
   draftPicks   DraftPick[]
   boutScores   TeamBoutScore[]
-  wonBouts     Bout[]         @relation("BoutWinner")
+  wonBouts     Bout[]           @relation("BoutWinner")
+  draftQueues  DraftPickQueue[]
+  droppedFighters DroppedFighter[]
+  tradeItems      TradeItem[]
 
-  @@index([division])
+  @@index([divisionId])
   @@index([rank])
   @@index([isChampion])
   @@index([isActive])
-  @@index([division, rank])
+  @@index([divisionId, rank])
   @@map("fighters")
 }
 
@@ -152,17 +174,17 @@ model BoutFighter {
 }
 
 model League {
-  id          String       @id @default(cuid())
-  name        String
-  code        String       @unique
-  passcode    String?
-  managerId   String
-  memberLimit Int          @default(8)
-  rosterSize  Int          @default(5)
-  status      LeagueStatus @default(DRAFTING)
-  draftTime   DateTime?
-  isSystemGenerated Boolean  @default(false)
-  deletedAt   DateTime?
+  id                String       @id @default(cuid())
+  name              String
+  code              String       @unique
+  passcode          String?
+  managerId         String
+  memberLimit       Int          @default(8)
+  rosterSize        Int          @default(5)
+  status            LeagueStatus @default(DRAFTING)
+  draftTime         DateTime?
+  isSystemGenerated Boolean      @default(false)
+  deletedAt         DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,6 +194,7 @@ model League {
   teams           Team[]
   scoringSettings LeagueScoringSettings?
   draftSession    DraftSession?
+  trades          Trade[]
 
   @@index([managerId])
   @@index([code])
@@ -180,9 +203,10 @@ model League {
 }
 
 model LeagueMember {
-  id       String @id @default(cuid())
-  leagueId String
-  userId   String
+  id                String  @id @default(cuid())
+  leagueId          String
+  userId            String
+  isAutoPickEnabled Boolean @default(false) // Set true if user misses a pick turn
 
   joinedAt DateTime @default(now())
 
@@ -230,7 +254,8 @@ model Team {
   teamFighters TeamFighter[]
   draftPicks   DraftPick[]
   draftOrders  DraftOrder[]
-  boutScores   TeamBoutScore[]
+  boutScores      TeamBoutScore[]
+  droppedFighters DroppedFighter[]
 
   @@unique([leagueId, ownerId])
   @@index([leagueId])
@@ -243,6 +268,7 @@ model TeamFighter {
   id         String @id @default(cuid())
   teamId     String
   fighterId  String
+  points     Int    @default(0) // Points earned by this fighter while ON this team
 
   acquiredAt DateTime @default(now())
 
@@ -255,6 +281,21 @@ model TeamFighter {
   @@map("team_fighters")
 }
 
+model DroppedFighter {
+  id           String @id @default(cuid())
+  teamId       String
+  fighterId    String
+  pointsEarned Int    @default(0)
+  droppedAt    DateTime @default(now())
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  fighter Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([fighterId])
+  @@map("dropped_fighters")
+}
+
 model DraftSession {
   id               String      @id @default(cuid())
   leagueId         String      @unique
@@ -263,6 +304,8 @@ model DraftSession {
   currentPickIndex Int         @default(0)
   secondsPerPick   Int         @default(60)
   totalRounds      Int
+  version          Int         @default(0) // Optimistic locking — incremented on every pick
+  turnStartedAt    DateTime?               // When the current turn's timer began
 
   startedAt   DateTime?
   completedAt DateTime?
@@ -358,4 +401,89 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ─── Trade System ─────────────────────────────────────────────────────────────
+
+model Trade {
+  id            String      @id @default(cuid())
+  leagueId      String
+  senderId      String
+  receiverId    String
+  status        TradeStatus @default(PENDING)
+  message       String?
+  items        TradeItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  league   League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  sender   User        @relation("TradeSender",   fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver User        @relation("TradeReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  vetos    TradeVeto[]
+
+  @@index([leagueId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("trades")
+}
+
+model TradeItem {
+  id        String @id @default(cuid())
+  tradeId   String
+  fighterId String
+  side      TradeSide
+
+  trade   Trade   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  fighter Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, fighterId])
+  @@index([tradeId])
+  @@index([fighterId])
+  @@map("trade_items")
+}
+
+model TradeVeto {
+  id      String @id @default(cuid())
+  tradeId String
+  userId  String
+
+  createdAt DateTime @default(now())
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, userId])
+  @@index([tradeId])
+  @@map("trade_vetos")
+}
+
+// ─── Draft Pick Queue (User wishlist) ─────────────────────────────────────────
+
+model DraftPickQueue {
+  id        String @id @default(cuid())
+  userId    String
+  leagueId  String
+  fighterId String
+  priority  Int    // Lower number = higher priority (1 = first pick)
+
+  createdAt DateTime @default(now())
+
+  fighter Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId],    references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId, fighterId])
+  @@index([userId, leagueId, priority])
+  @@map("draft_pick_queues")
+}
+
+// ─── System State (Saturday Lockdown, etc.) ───────────────────────────────────
+
+model SystemState {
+  id               Int      @id @default(1)
+  isLocked         Boolean  @default(false)
+  lastResultUpdate DateTime @default(now())
+
+  @@map("system_state")
 }

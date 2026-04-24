@@ -10,6 +10,7 @@ export enum Role {
 export enum LeagueStatus {
   DRAFTING  = "DRAFTING",
   ACTIVE    = "ACTIVE",
+  LOCKED    = "LOCKED",
   COMPLETED = "COMPLETED",
   ARCHIVED  = "ARCHIVED",
 }
@@ -45,5 +46,15 @@ export enum NotificationType {
   RESULTS_POSTED = "RESULTS_POSTED",
   LEAGUE_INVITE  = "LEAGUE_INVITE",
   TRADE_OFFER    = "TRADE_OFFER",
+  TRADE_ACCEPTED = "TRADE_ACCEPTED",
+  TRADE_REJECTED = "TRADE_REJECTED",
+  TRADE_VETOED   = "TRADE_VETOED",
   SYSTEM         = "SYSTEM",
+}
+
+export enum TradeStatus {
+  PENDING  = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
+  VETOED   = "VETOED",
 }

@@ -22,20 +22,22 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("uploads"));
 
 // ─── Swagger UI ───────────────────────────────────────────────────────────────
-app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: "Fantasy UFC API Docs",
-    swaggerOptions: { persistAuthorization: true },
-  })
-);
+if (config.node_env === "development") {
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customSiteTitle: "Fantasy UFC API Docs",
+      swaggerOptions: { persistAuthorization: true },
+    })
+  );
 
-// Expose raw spec for tools like Postman
-app.get("/api-docs.json", (_req, res) => {
-  res.setHeader("Content-Type", "application/json");
-  res.send(swaggerSpec);
-});
+  // Expose raw spec for tools like Postman
+  app.get("/api-docs.json", (_req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.send(swaggerSpec);
+  });
+}
 
 // ─── Rate Limiting (sliding window, 100 req/min per IP) ─────────────────────
 app.use(rateLimiter);

@@ -2882,3 +2882,221 @@ Draft must be REAL-TIME for all users
 RULE 6:
 Each user MUST end draft with exactly 20 fighters
 "
+
+
+MMA Fantasy League — Enhanced Prisma Schema Design (3NF)Version: 2.0 (Post-Meeting Revision)Database: PostgreSQL 15+ORM: Prisma 6.xStatus: Production-Ready for High-Concurrency Drafts1. ER Diagram (Refined)2. Updated EnumsCode snippetenum Role {
+  USER
+  ADMIN
+}
+
+enum LeagueStatus {
+  DRAFTING
+  ACTIVE
+  LOCKED     // Gabriel: Lock transactions on fight nights
+  COMPLETED
+}
+
+enum DraftStatus {
+  WAITING
+  LIVE
+  COMPLETED
+}
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  VETOED
+}
+
+enum BoutResult {
+  KO_TKO
+  SUBMISSION
+  DECISION_UNANIMOUS
+  DECISION_SPLIT
+  DECISION_MAJORITY
+  DRAW
+  NO_CONTEST
+  DQ
+}
+3. Complete 3NF Model DesignAuth & UsersCode snippetmodel User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  username     String    @unique
+  passwordHash String
+  role         Role      @default(USER)
+  timezone     String    @default("UTC")
+  
+  managedLeagues  League[]       @relation("LeagueManager")
+  memberships     LeagueMember[]
+  teams           Team[]
+  tradeOffersSent Trade[]        @relation("TradeSender")
+  tradeOffersRecv Trade[]        @relation("TradeReceiver")
+  vetos           TradeVeto[]
+  notifications   Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("users")
+}
+Fighter Catalog (Normalized)Code snippetmodel Fighter {
+  id          String   @id @default(cuid())
+  name        String
+  nickname    String?
+  nationality String
+  divisionId  String
+  rank        Int?     // Admin managed: influencer for "Best Available"
+  isActive    Boolean  @default(true)
+
+  division    Division @relation(fields: [divisionId], references: [id])
+  teamFighters TeamFighter[] 
+  draftPicks   DraftPick[]
+  boutFighters BoutFighter[]
+  queues       DraftPickQueue[]
+
+  @@map("fighters")
+}
+
+model Division {
+  id       String    @id @default(cuid())
+  name     String    @unique // e.g., "Lightweight"
+  fighters Fighter[]
+}
+Leagues & TeamsCode snippetmodel League {
+  id          String       @id @default(cuid())
+  name        String
+  code        String       @unique
+  passcode    String?      // Null for Public
+  managerId   String
+  memberLimit Int          @default(10)
+  status      LeagueStatus @default(DRAFTING)
+  isPublic    Boolean      @default(true)
+  isSystemGenerated Boolean @default(false) // Gabriel: For instant draft rooms
+  
+  manager      User           @relation("LeagueManager", fields: [managerId], references: [id])
+  members      LeagueMember[]
+  teams        Team[]
+  draftSession DraftSession?
+  trades       Trade[]
+  scoring      ScoringSettings?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("leagues")
+}
+
+model LeagueMember {
+  id                String  @id @default(cuid())
+  leagueId          String
+  userId            String
+  isAutoPickEnabled Boolean @default(false) // Triggered if user misses a turn
+
+  league League @relation(fields: [leagueId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([leagueId, userId])
+}
+
+model Team {
+  id          String @id @default(cuid())
+  name        String
+  leagueId    String
+  ownerId     String
+  totalPoints Int    @default(0)
+
+  league      League         @relation(fields: [leagueId], references: [id])
+  owner       User           @relation(fields: [ownerId], references: [id])
+  fighters    TeamFighter[]
+  activeTurns DraftSession[] @relation("CurrentTurn")
+
+  @@unique([leagueId, ownerId])
+  @@map("teams")
+}
+
+model TeamFighter {
+  id        String @id @default(cuid())
+  teamId    String
+  fighterId String
+  points    Int    @default(0) // 3NF: Points earned specifically while on THIS team
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  fighter Fighter @relation(fields: [fighterId], references: [id])
+
+  @@unique([teamId, fighterId])
+}
+Real-Time Draft SystemCode snippetmodel DraftSession {
+  id               String      @id @default(cuid())
+  leagueId         String      @unique
+  status           DraftStatus @default(WAITING)
+  currentPickIndex Int         @default(0)
+  currentTeamId    String?
+  turnStartedAt    DateTime?
+  secondsPerPick   Int         @default(60)
+  version          Int         @default(0) // Concurrency control
+
+  league      League       @relation(fields: [leagueId], references: [id])
+  currentTeam Team?        @relation("CurrentTurn", fields: [currentTeamId], references: [id])
+  picks       DraftPick[]
+  orders      DraftOrder[]
+
+  @@map("draft_sessions")
+}
+
+model DraftOrder {
+  id             String @id @default(cuid())
+  draftSessionId String
+  teamId         String
+  overallPick    Int    // 0-199 for a 200-pick draft
+
+  draftSession DraftSession @relation(fields: [draftSessionId], references: [id])
+  team         Team         @relation(fields: [teamId], references: [id])
+
+  @@unique([draftSessionId, overallPick])
+}
+
+model DraftPickQueue {
+  id        String @id @default(cuid())
+  userId    String
+  leagueId  String
+  fighterId String
+  priority  Int    // Gabriel: Pre-Draft Rankings Priority
+
+  fighter Fighter @relation(fields: [fighterId], references: [id])
+
+  @@unique([userId, leagueId, fighterId])
+}
+Trades & Veto SystemCode snippetmodel Trade {
+  id             String      @id @default(cuid())
+  leagueId       String
+  senderId       String
+  receiverId     String
+  status         TradeStatus @default(PENDING)
+  
+  league   League      @relation(fields: [leagueId], references: [id])
+  sender   User        @relation("TradeSender", fields: [senderId], references: [id])
+  receiver User        @relation("TradeReceiver", fields: [receiverId], references: [id])
+  items    TradeItem[]
+  vetos    TradeVeto[]
+
+  createdAt DateTime @default(now())
+}
+
+model TradeItem {
+  id        String @id @default(cuid())
+  tradeId   String
+  fighterId String // The fighter being moved
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model TradeVeto {
+  id      String @id @default(cuid())
+  tradeId String
+  userId  String
+
+  trade Trade @relation(fields: [tradeId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([tradeId, userId])
+}
+4. Feature Implementation InstructionsA. The "Gabriel" Points CascadeAdmin Dashboard: When results are input, do not update teams one by one.Process: 1. Update the TeamFighter.points for all records matching the winning fighterId.2. Use a PostgreSQL trigger or a Prisma $transaction to update the parent Team.totalPoints simultaneously.The Drop Rule: If a user clicks "-", subtract TeamFighter.points from Team.totalPoints before deleting the record.B. Snake Draft LogicGeneration: On draft start, create all DraftOrder entries.Even Rounds (0, 2...): Pick position 1 to 10.Odd Rounds (1, 3...): Pick position 10 to 1.Real-Time Sync: Emit turn_update with endsAt (timestamp). Frontend must use setInterval to compare Date.now() against endsAt to ensure global sync regardless of lag.C. Public Room "Auto-Fill"Lobby Logic: 1. If memberCount < 10 and timer == 0, run UPDATE League SET draftTime = NOW() + INTERVAL '5 minutes'.2. Notify all clients in the room via Socket.IO to reset their countdowns.D. Saturday Lockdown MiddlewareProtection: Any route modifying TeamFighter or Trade must pass through a checkLock middleware.Check: Query League.status. If LOCKED, return 403 with "Transactions closed during live bouts."5. Indexing StrategyIndexReasonTeam.totalPoints(DESC)For real-time leaderboard ranking.DraftOrder.overallPickFor high-speed turn calculation.TradeVeto.tradeIdTo quickly check if veto threshold (4/10) is met.Fighter.rankTo efficiently pick "Best Available" for expired timers.Final Project Validation InstructionsConcurrency Test: Simulate 10 users picking simultaneously. Verify that Prisma version increments prevent duplicate DraftPick numbers.3NF Audit: Ensure ScoringSettings are moved to a separate table to allow Gabriel to adjust points per-league without affecting the global Fighter table.Draft Recovery: Kill the Node.js process during a draft. Upon restart, the system must use DraftSession.turnStartedAt to resume the current turn accurately.

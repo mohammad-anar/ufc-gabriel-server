@@ -1,6 +1,7 @@
 import app from "./app.js";
 import config from "./config/index.js";
 import { seedSuperAdmin } from "./db/seedSuperAdmin.js";
+import { startDraftEngine, stopDraftEngine } from "./helpers/draftEngine.js";
 
 let server: any;
 
@@ -13,6 +14,9 @@ process.on("uncaughtException", (error) => {
 async function bootstrap() {
   try {
     await seedSuperAdmin();
+
+    // Start real-time draft heartbeat
+    startDraftEngine();
 
     server = app.listen(config.port, () => {
       console.log(`🚀 Server running on http://localhost:${config.port}`);

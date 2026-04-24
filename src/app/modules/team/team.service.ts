@@ -73,9 +73,47 @@ const updateTeam = async (
   return prisma.team.update({ where: { id: teamId }, data: payload });
 };
 
+const dropFighter = async (teamId: string, fighterId: string, ownerId: string) => {
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) throw new ApiError(404, "Team not found");
+  if (team.ownerId !== ownerId)
+    throw new ApiError(403, "Only the team owner can drop fighters");
+
+  const teamFighter = await prisma.teamFighter.findUnique({
+    where: { teamId_fighterId: { teamId, fighterId } },
+  });
+
+  if (!teamFighter) throw new ApiError(404, "Fighter is not on this team");
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Move to DroppedFighter for 3NF history
+    await tx.droppedFighter.create({
+      data: {
+        teamId,
+        fighterId,
+        pointsEarned: teamFighter.points,
+      },
+    });
+
+    // 2. Subtract the points from the team's total
+    await tx.team.update({
+      where: { id: teamId },
+      data: { totalPoints: { decrement: teamFighter.points } },
+    });
+
+    // 3. Delete the active relation
+    await tx.teamFighter.delete({
+      where: { teamId_fighterId: { teamId, fighterId } },
+    });
+
+    return { success: true };
+  });
+};
+
 export const TeamService = {
   getMyTeams,
   getTeamById,
   getLeaderboard,
   updateTeam,
+  dropFighter,
 };

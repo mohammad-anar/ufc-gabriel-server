@@ -93,6 +93,12 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
         where: { id: tf.teamId },
         data: { totalPoints: { increment: totalPoints } },
       });
+
+      // Track points this fighter earned while on this specific team
+      await tx.teamFighter.update({
+        where: { teamId_fighterId: { teamId: tf.teamId, fighterId: bout.winnerId! } },
+        data: { points: { increment: totalPoints } },
+      });
     }
   });
 };

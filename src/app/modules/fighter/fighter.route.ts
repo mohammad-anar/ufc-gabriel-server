@@ -27,7 +27,7 @@ const router = express.Router();
  *         schema: { type: string }
  *         description: Search by name, nickname, or nationality
  *       - in: query
- *         name: division
+ *         name: divisionId
  *         schema: { type: string }
  *       - in: query
  *         name: isChampion

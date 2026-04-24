@@ -3,7 +3,7 @@ import { z } from "zod";
 const createFighterZodSchema = z.object({
     name: z.string({ message: "Name is required" }),
     nationality: z.string({ message: "Nationality is required" }),
-    division: z.string({ message: "Division is required" }),
+    divisionId: z.string({ message: "Division ID is required" }),
     nickname: z.string().optional(),
     rank: z.number().int().optional(),
     isChampion: z.boolean().optional(),
@@ -27,7 +27,7 @@ const updateFighterZodSchema = z.object({
 
     name: z.string().optional(),
     nationality: z.string().optional(),
-    division: z.string().optional(),
+    divisionId: z.string().optional(),
     nickname: z.string().optional(),
     rank: z.number().int().nullable().optional(),
     isChampion: z.boolean().optional(),

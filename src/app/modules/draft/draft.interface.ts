@@ -1,6 +1,6 @@
 export interface IDraftFilterRequest {
   searchTerm?: string;
-  division?: string;
+  divisionId?: string;
 }
 
 export interface IPickFighterPayload {

@@ -23,4 +23,9 @@ const updateTeam = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Team updated successfully", data: result });
 });
 
-export const TeamController = { getMyTeams, getTeamById, getLeaderboard, updateTeam };
+const dropFighter = catchAsync(async (req: Request, res: Response) => {
+  const result = await TeamService.dropFighter(req.params.id, req.params.fighterId, req.user.id);
+  sendResponse(res, { statusCode: 200, success: true, message: "Fighter dropped successfully", data: result });
+});
+
+export const TeamController = { getMyTeams, getTeamById, getLeaderboard, updateTeam, dropFighter };

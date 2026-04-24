@@ -1,6 +1,7 @@
 import express from "express";
 import { TeamController } from "./team.controller.js";
 import auth from "../../middlewares/auth.js";
+import lockdownGuard from "../../middlewares/lockdownGuard.js";
 import { Role } from "../../../types/enum.js";
 
 const router = express.Router();
@@ -84,5 +85,30 @@ router.get("/leaderboard/:leagueId", TeamController.getLeaderboard);
  */
 router.get("/:id", auth(Role.USER, Role.ADMIN), TeamController.getTeamById);
 router.patch("/:id", auth(Role.USER, Role.ADMIN), TeamController.updateTeam);
+
+/**
+ * @swagger
+ * /team/{id}/fighter/{fighterId}:
+ *   delete:
+ *     tags: [Teams]
+ *     summary: Drop a fighter from the team (3NF integrity protected)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: fighterId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Fighter dropped successfully
+ *       403:
+ *         description: Not the team owner or system locked
+ *       404:
+ *         description: Team or Fighter not found
+ */
+router.delete("/:id/fighter/:fighterId", auth(Role.USER, Role.ADMIN), lockdownGuard, TeamController.dropFighter);
 
 export const TeamRouter = router;
