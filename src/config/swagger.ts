@@ -45,6 +45,14 @@ const options: swaggerJSDoc.Options = {
             password: { type: "string", example: "Password123" },
           },
         },
+        // ── Division ──────────────────────────────────────────────────────
+        DivisionBody: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", example: "Heavyweight" },
+          },
+        },
         // ── Fighter ───────────────────────────────────────────────────────
         FighterBody: {
           type: "object",
@@ -151,6 +159,19 @@ const options: swaggerJSDoc.Options = {
           required: ["fighterId"],
           properties: {
             fighterId: { type: "string", example: "clxyz789" },
+          },
+        },
+        // ── Newsletter ────────────────────────────────────────────────────
+        NewsletterBody: {
+          type: "object",
+          required: ["title", "description"],
+          properties: {
+            title:       { type: "string", example: "Latest UFC Updates" },
+            description: { 
+              type: "string", 
+              description: "Rich text content (HTML) for the newsletter body", 
+              example: "<h1>New Fights</h1><p>Check out the latest bout announcements!</p>" 
+            },
           },
         },
         // ── Shared ────────────────────────────────────────────────────────

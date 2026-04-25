@@ -2,9 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../helpers/prisma.js";
 import ApiError from "../../../errors/ApiError.js";
 import { paginationHelper } from "../../../helpers/paginationHelper.js";
-import { INewsletterFilterRequest } from "./newsletter.interface.js";
+import { INewsletter, INewsletterFilterRequest } from "./newsletter.interface.js";
 
-const createNewsletter = async (payload: Prisma.NewsletterCreateInput) => {
+const createNewsletter = async (payload: INewsletter) => {
   return prisma.newsletter.create({ data: payload });
 };
 
@@ -48,7 +48,7 @@ const getNewsletterById = async (id: string) => {
   return result;
 };
 
-const updateNewsletter = async (id: string, payload: Prisma.NewsletterUpdateInput) => {
+const updateNewsletter = async (id: string, payload: Partial<INewsletter>) => {
   const isExist = await prisma.newsletter.findUnique({ where: { id } });
   if (!isExist) throw new ApiError(404, "Newsletter not found");
 

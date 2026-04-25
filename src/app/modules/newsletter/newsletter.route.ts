@@ -24,9 +24,10 @@ const router = express.Router();
  *             required: [data]
  *             properties:
  *               data:
- *                 type: string
- *                 description: JSON stringified payload
- *                 example: '{"title": "Latest UFC Updates", "description": "<h1>New Fights</h1><p>Check out the latest bout announcements!</p>"}'
+ *                 $ref: '#/components/schemas/NewsletterBody'
+ *                 description: >
+ *                   JSON stringified payload containing title and rich text description.
+ *                   Must be a valid JSON string.
  *               image:
  *                 type: string
  *                 format: binary
@@ -109,9 +110,8 @@ router.get("/:id", NewsletterController.getNewsletterById);
  *             required: [data]
  *             properties:
  *               data:
- *                 type: string
- *                 description: JSON stringified payload
- *                 example: '{"title": "Updated Title"}'
+ *                 $ref: '#/components/schemas/NewsletterBody'
+ *                 description: JSON stringified payload (partial updates allowed)
  *               image:
  *                 type: string
  *                 format: binary

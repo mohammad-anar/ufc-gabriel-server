@@ -10,6 +10,7 @@ import { TradeRouter } from "../modules/trade/trade.route.js";
 import { QueueRouter } from "../modules/queue/queue.route.js";
 import { SystemRouter } from "../modules/system/system.route.js";
 import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
+import { DivisionRoutes } from "../modules/division/division.route.js";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ const moduleRoutes = [
   { path: "/queue",   route: QueueRouter },
   { path: "/system",  route: SystemRouter },
   { path: "/newsletter", route: NewsletterRoutes },
+  { path: "/division", route: DivisionRoutes },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));
