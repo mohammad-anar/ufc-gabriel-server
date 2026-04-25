@@ -475,3 +475,15 @@ model SystemState {
 
   @@map("system_state")
 }
+
+model Newsletter {
+  id          String   @id @default(cuid())
+  title       String
+  image       String?
+  description String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("newsletters")
+}
