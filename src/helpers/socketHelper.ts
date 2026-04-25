@@ -1,6 +1,13 @@
 import { Server, Socket } from "socket.io";
+import { prisma } from "./prisma.js";
+import { DraftService } from "../app/modules/draft/draft.service.js";
+import ApiError from "../errors/ApiError.js";
+import { StatusCodes } from "http-status-codes";
 
 let io: Server | null = null;
+
+// TODO: If deploying to a horizontal scaling environment (AWS, DigitalOcean Load Balancers),
+// migrate this in-memory map and Socket.IO server to use the @socket.io/redis-adapter.
 
 // Store socket IDs per user
 const socketMap: Map<string, Set<string>> = new Map();
@@ -19,57 +26,56 @@ export const initSocket = (server: any) => {
       if (!userId) return;
       if (!socketMap.has(userId)) socketMap.set(userId, new Set());
       socketMap.get(userId)!.add(socket.id);
+      (socket as any).userId = userId;
       console.log(`✅ Registered socket ${socket.id} for user ${userId}`);
     });
 
     // Join a draft room
-    socket.on("join_draft", (leagueId: string) => {
+    socket.on("join_draft", async (leagueId: string) => {
       if (!leagueId) return;
       socket.join(`draft:${leagueId}`);
       console.log(`📋 Socket ${socket.id} joined draft room: ${leagueId}`);
+      
+      try {
+        const currentSession = await DraftService.getDraftSession(leagueId);
+        socket.emit("draft:sync", currentSession);
+      } catch (error) {
+        // Safe to ignore: the session might not be started/created yet.
+      }
     });
 
     // Make a pick directly via Socket.IO
     socket.on("make_pick", async (data: { leagueId: string; fighterId: string }) => {
       try {
         const { leagueId, fighterId } = data;
+        const userId = (socket as any).userId;
+
+        if (!userId) {
+          throw new Error("Unauthenticated socket session");
+        }
         if (!leagueId || !fighterId) return;
 
-        // 1. Find the user ID from the socket registration mapping
-        let activeUserId: string | null = null;
-        for (const [uid, sockets] of socketMap.entries()) {
-          if (sockets.has(socket.id)) {
-            activeUserId = uid;
-            break;
-          }
-        }
-
-        if (!activeUserId) {
-          socket.emit("draft:error", { message: "Unauthenticated socket session" });
-          return;
-        }
-
-        // 2. Check Saturday Lockdown Guard & League Status
-        // We import Prisma dynamically or locally to avoid circular deps if needed
-        const { prisma } = await import("./prisma.js");
+        // 1. Check Lockdown (Saturday Lockdown)
         const systemState = await prisma.systemState.findUnique({ where: { id: 1 } });
         if (systemState?.isLocked) {
-          socket.emit("draft:error", { message: "System is locked: UFC event in progress. Drafts are paused." });
-          return;
+          throw new ApiError(StatusCodes.LOCKED, "System is locked: UFC event in progress. Drafts are paused.");
         }
 
         const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { status: true } });
         if (league?.status === "LOCKED") {
-          socket.emit("draft:error", { message: "This specific league is currently locked." });
-          return;
+          throw new ApiError(StatusCodes.LOCKED, "This specific league is currently locked.");
         }
 
-        // 3. Execute the pick
-        const { DraftService } = await import("../app/modules/draft/draft.service.js");
-        await DraftService.pickFighter(leagueId, activeUserId, { fighterId });
+        // 2. Execute the pick
+        const result = await DraftService.pickFighter(leagueId, userId, data);
 
+        // 3. Success is broadcasted INSIDE the service via emitDraftEvent
       } catch (error: any) {
-        socket.emit("draft:error", { message: error.message || "Failed to make pick" });
+        socket.emit("draft:error", { 
+          success: false,
+          statusCode: error.statusCode || StatusCodes.BAD_REQUEST,
+          message: error.message || "Failed to make pick"
+        });
       }
     });
 
