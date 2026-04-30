@@ -246,9 +246,10 @@ router.post("/logout", auth(Role.USER, Role.ADMIN), UserController.logout);
  *         description: Profile updated
  */
 router.get("/me", auth(Role.USER, Role.ADMIN), UserController.getMe);
+
 router.patch(
   "/me",
-  auth(Role.USER, Role.ADMIN),
+  auth(Role.USER, Role.ADMIN, Role.USER),
   fileUploadHandler(),
   (req, res, next) => {
     if (req.body.data) {
