@@ -12,6 +12,7 @@ import { SystemRouter } from "../modules/system/system.route.js";
 import { SystemScoreRouter } from "../modules/systemScore/systemScore.route.js";
 import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
 import { DivisionRoutes } from "../modules/division/division.route.js";
+import { LegalRouter } from "app/modules/legal/legal.routes.js";
 
 const router = express.Router();
 
@@ -29,6 +30,7 @@ const moduleRoutes = [
   { path: "/system-score", route: SystemScoreRouter },
   { path: "/newsletter", route: NewsletterRoutes },
   { path: "/division", route: DivisionRoutes },
+  { path: "/legal", route: LegalRouter },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));
