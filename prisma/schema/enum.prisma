@@ -24,7 +24,7 @@ enum DraftStatus {
   COMPLETED
 }
 
-enum BoutResult {
+enum BoutResultType {
   KO_TKO
   SUBMISSION
   DECISION_UNANIMOUS

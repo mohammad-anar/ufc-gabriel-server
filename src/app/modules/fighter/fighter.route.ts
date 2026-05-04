@@ -31,11 +31,17 @@ const router = express.Router();
  *         name: divisionId
  *         schema: { type: string }
  *       - in: query
- *         name: isChampion
- *         schema: { type: boolean }
- *       - in: query
  *         name: isActive
  *         schema: { type: boolean }
+ *       - in: query
+ *         name: nationality
+ *         schema: { type: string }
+ *       - in: query
+ *         name: minRank
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: maxRank
+ *         schema: { type: integer }
  *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1 }
@@ -65,7 +71,7 @@ const router = express.Router();
  *               data:
  *                 type: string
  *                 description: JSON stringified payload matching FighterBody
- *                 example: '{"name": "Conor McGregor", "nationality": "Irish", "divisionId": "cm1y...", "nickname": "The Notorious", "rank": 1, "isChampion": false, "age": 35, "height": "5''9\"", "reach": "74\"", "wins": 22, "losses": 6, "draws": 0}'
+ *                 example: '{"name": "Conor McGregor", "nationality": "Irish", "divisionId": "cm1y...", "nickname": "The Notorious", "rank": 1, "avgL5": 85, "bio": "Former double champ", "age": 35, "height": "5''9\"", "wins": 22, "losses": 6, "draws": 0}'
  *               image:
  *                 type: string
  *                 format: binary

@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  previewFeatures = ["postgresqlExtensions", "prismaSchemaFolder"]
 }
 
 datasource db {
@@ -64,19 +64,14 @@ model Fighter {
   nationality            String
   divisionId             String
   rank                   Int?
-  isChampion             Boolean  @default(false)
-  avatarUrl              String?
-  age                    Int?
-  height                 String?
-  reach                  String?
   wins                   Int      @default(0)
   losses                 Int      @default(0)
   draws                  Int      @default(0)
-  koWins                 Int      @default(0)
-  submissionWins         Int      @default(0)
-  decisionWins           Int      @default(0)
-  titleDefenses          Int      @default(0)
-  formerChampionDivisions String[]
+  avgL5                  Int      @default(0)
+  bio                    String?
+  avatarUrl              String?
+  age                    Int?
+  height                 String?
   isActive               Boolean  @default(true)
 
   createdAt DateTime @default(now())
@@ -87,14 +82,13 @@ model Fighter {
   boutFighters BoutFighter[]
   draftPicks   DraftPick[]
   boutScores   TeamBoutScore[]
-  wonBouts     Bout[]           @relation("BoutWinner")
+  wonBoutOutcomes BoutOutcome[]
   draftQueues  DraftPickQueue[]
   droppedFighters DroppedFighter[]
   tradeItems      TradeItem[]
 
   @@index([divisionId])
   @@index([rank])
-  @@index([isChampion])
   @@index([isActive])
   @@index([divisionId, rank])
   @@map("fighters")
@@ -120,31 +114,48 @@ model Event {
 }
 
 model Bout {
-  id                    String      @id @default(cuid())
-  eventId               String
-  weightClass           String
-  rounds                Int         @default(3)
-  isMainEvent           Boolean     @default(false)
-  isCoMainEvent         Boolean     @default(false)
-  isTitleFight          Boolean     @default(false)
-  winnerId              String?
-  result                BoutResult?
-  isChampionVsChampion  Boolean     @default(false)
-  isWinnerAgainstRanked Boolean     @default(false)
-  order                 Int         @default(0)
+  id               String   @id @default(cuid())
+  eventId          String
+  weightClass      String
+  rounds           Int      @default(3)
+  isMainEvent      Boolean  @default(false)
+  isCoMainEvent    Boolean  @default(false)
+  isTitleFight     Boolean  @default(false)
+  isFiveRoundFight Boolean  @default(false)
+  order            Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  winner       Fighter?       @relation("BoutWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  event        Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   boutFighters BoutFighter[]
   boutScores   TeamBoutScore[]
+  outcome      BoutOutcome?
 
   @@index([eventId])
-  @@index([winnerId])
   @@index([eventId, order])
   @@map("bouts")
+}
+
+model BoutOutcome {
+  id                    String         @id @default(cuid())
+  boutId                String         @unique
+  winnerId              String
+  resultType            BoutResultType
+  isFinish              Boolean        @default(false)
+  isTitleFight          Boolean        @default(false)
+  isChampionVsChampion  Boolean        @default(false)
+  isWinnerAgainstRanked Boolean        @default(false)
+  isFiveRoundFight      Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bout   Bout    @relation(fields: [boutId], references: [id], onDelete: Cascade)
+  winner Fighter @relation(fields: [winnerId], references: [id])
+
+  @@index([winnerId])
+  @@map("bout_outcomes")
 }
 
 model BoutFighter {

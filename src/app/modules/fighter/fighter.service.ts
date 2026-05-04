@@ -2,14 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../helpers/prisma.js";
 import ApiError from "../../../errors/ApiError.js";
 import { paginationHelper } from "../../../helpers/paginationHelper.js";
-import { IFighterFilterRequest } from "./fighter.interface.js";
-
-type IPaginationOptions = {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: string;
-};
+import { IFighterFilterRequest, IPaginationOptions } from "./fighter.interface.js";
 
 const createFighter = async (payload: Prisma.FighterCreateInput) => {
   const result = await prisma.fighter.create({ data: payload });
@@ -22,7 +15,7 @@ const getAllFighters = async (
 ) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
-  const { searchTerm, ...filterData } = filter;
+  const { searchTerm, minRank, maxRank, ...filterData } = filter;
 
   const andConditions: Prisma.FighterWhereInput[] = [];
 
@@ -34,11 +27,29 @@ const getAllFighters = async (
     });
   }
 
+  if (minRank) {
+    andConditions.push({
+      rank: { gte: Number(minRank) },
+    });
+  }
+
+  if (maxRank) {
+    andConditions.push({
+      rank: { lte: Number(maxRank) },
+    });
+  }
+
   if (Object.keys(filterData).length > 0) {
     andConditions.push({
-      AND: Object.keys(filterData).map((key) => ({
-        [key]: { equals: (filterData as any)[key] },
-      })),
+      AND: Object.keys(filterData).map((key) => {
+        let value = (filterData as any)[key];
+        if (value === "true") value = true;
+        if (value === "false") value = false;
+
+        return {
+          [key]: { equals: value },
+        };
+      }),
     });
   }
 
@@ -51,6 +62,7 @@ const getAllFighters = async (
       skip,
       take: limit,
       orderBy: { [sortBy]: sortOrder },
+      include: { division: true },
     }),
     prisma.fighter.count({ where }),
   ]);
@@ -64,7 +76,10 @@ const getAllFighters = async (
 const getFighterById = async (id: string) => {
   const result = await prisma.fighter.findUnique({
     where: { id },
-    include: { boutFighters: { include: { bout: true } } },
+    include: {
+      division: true,
+      boutFighters: { include: { bout: true } },
+    },
   });
   if (!result) throw new ApiError(404, "Fighter not found");
   return result;

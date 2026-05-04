@@ -8,14 +8,16 @@ import { prisma } from "../../../helpers/prisma.js";
 export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
   const bout = await prisma.bout.findUnique({
     where: { id: boutId },
-    include: { event: true },
+    include: { event: true, outcome: true },
   });
 
-  if (!bout || !bout.winnerId || !bout.result) return;
+  if (!bout || !bout.outcome) return;
+
+  const winnerId = bout.outcome.winnerId;
 
   // Find all team rosters that have the winning fighter
   const teamFighters = await prisma.teamFighter.findMany({
-    where: { fighterId: bout.winnerId },
+    where: { fighterId: winnerId },
     include: { team: { include: { league: { include: { scoringSettings: true } } } } },
   });
 
@@ -29,24 +31,23 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
       // Calculate points breakdown
       const winPoints = settings.winPoints;
 
-      const isFinish =
-        bout.result === "KO_TKO" || bout.result === "SUBMISSION";
-      const finishBonus = isFinish ? settings.finishBonus : 0;
+      const finishBonus = bout.outcome!.isFinish ? settings.finishBonus : 0;
 
-      const championshipPoints = bout.isTitleFight
+      const championshipPoints = bout.outcome!.isTitleFight
         ? settings.winningChampionshipBout
         : 0;
 
-      const champVsChampPoints = bout.isChampionVsChampion
+      const champVsChampPoints = bout.outcome!.isChampionVsChampion
         ? settings.championVsChampionWin
         : 0;
 
-      const rankedOpponentPoints = bout.isWinnerAgainstRanked
+      const rankedOpponentPoints = bout.outcome!.isWinnerAgainstRanked
         ? settings.winningAgainstRankedOpponent
         : 0;
 
-      const fiveRoundPoints =
-        bout.rounds === 5 ? settings.winningFiveRoundFight : 0;
+      const fiveRoundPoints = bout.outcome!.isFiveRoundFight
+        ? settings.winningFiveRoundFight
+        : 0;
 
       const totalPoints =
         winPoints +
@@ -62,13 +63,13 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
           teamId_boutId_fighterId: {
             teamId: tf.teamId,
             boutId,
-            fighterId: bout.winnerId!,
+            fighterId: winnerId,
           },
         },
         create: {
           teamId: tf.teamId,
           boutId,
-          fighterId: bout.winnerId!,
+          fighterId: winnerId,
           winPoints,
           finishBonus,
           championshipPoints,
@@ -96,7 +97,7 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
 
       // Track points this fighter earned while on this specific team
       await tx.teamFighter.update({
-        where: { teamId_fighterId: { teamId: tf.teamId, fighterId: bout.winnerId! } },
+        where: { teamId_fighterId: { teamId: tf.teamId, fighterId: winnerId } },
         data: { points: { increment: totalPoints } },
       });
     }

@@ -31,7 +31,11 @@ const postBoutResultZodSchema = z.object({
       "NO_CONTEST",
       "DQ",
     ]),
+    isFinish: z.boolean().optional(),
+    isTitleFight: z.boolean().optional(),
+    isChampionVsChampion: z.boolean().optional(),
     isWinnerAgainstRanked: z.boolean().optional(),
+    isFiveRoundFight: z.boolean().optional(),
 });
 
 export const BoutValidation = {

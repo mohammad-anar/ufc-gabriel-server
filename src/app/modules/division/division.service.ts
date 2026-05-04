@@ -35,6 +35,11 @@ const getAllDivisions = async (
     skip,
     take: limit,
     orderBy: { [sortBy || "name"]: sortOrder || "asc" },
+    include: {
+      _count: {
+        select: { fighters: true },
+      },
+    },
   });
 
   const total = await prisma.division.count({ where });
@@ -46,7 +51,14 @@ const getAllDivisions = async (
 };
 
 const getDivisionById = async (id: string): Promise<Division | null> => {
-  const result = await prisma.division.findUnique({ where: { id } });
+  const result = await prisma.division.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: { fighters: true },
+      },
+    },
+  });
   if (!result) {
     throw new ApiError(404, "Division not found");
   }

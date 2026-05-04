@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../helpers/prisma.js";
 import ApiError from "../../../errors/ApiError.js";
 import { paginationHelper } from "../../../helpers/paginationHelper.js";
-import { IEventFilterRequest } from "./event.interface.js";
+import { ICreateEventPayload, IEventFilterRequest } from "./event.interface.js";
 
 type IPaginationOptions = {
   page?: number;
@@ -11,8 +11,35 @@ type IPaginationOptions = {
   sortOrder?: string;
 };
 
-const createEvent = async (payload: Prisma.EventCreateInput) => {
-  return prisma.event.create({ data: payload });
+const createEvent = async (payload: ICreateEventPayload) => {
+  const { bouts, ...eventData } = payload;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const event = await tx.event.create({ data: eventData });
+
+    if (bouts && bouts.length > 0) {
+      for (const boutData of bouts) {
+        const { fighters, ...data } = boutData;
+        const bout = await tx.bout.create({
+          data: { ...data, eventId: event.id },
+        });
+        await tx.boutFighter.createMany({
+          data: fighters.map((f) => ({ ...f, boutId: bout.id })),
+        });
+      }
+    }
+
+    return tx.event.findUnique({
+      where: { id: event.id },
+      include: {
+        bouts: {
+          include: { boutFighters: { include: { fighter: true } } },
+        },
+      },
+    });
+  });
+
+  return result;
 };
 
 const getAllEvents = async (
@@ -69,7 +96,7 @@ const getEventById = async (id: string) => {
         orderBy: { order: "asc" },
         include: {
           boutFighters: { include: { fighter: true } },
-          winner: true,
+          outcome: { include: { winner: true } },
         },
       },
     },

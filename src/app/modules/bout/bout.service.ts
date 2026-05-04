@@ -30,7 +30,7 @@ const getBoutsByEventId = async (eventId: string) => {
     orderBy: { order: "asc" },
     include: {
       boutFighters: { include: { fighter: true } },
-      winner: true,
+      outcome: { include: { winner: true } },
     },
   });
 };
@@ -40,7 +40,7 @@ const getBoutById = async (id: string) => {
     where: { id },
     include: {
       boutFighters: { include: { fighter: true } },
-      winner: true,
+      outcome: { include: { winner: true } },
       event: true,
     },
   });
@@ -51,7 +51,7 @@ const getBoutById = async (id: string) => {
 const postBoutResult = async (id: string, payload: IPostBoutResultPayload) => {
   const bout = await getBoutById(id);
 
-  if (bout.result) {
+  if (bout.outcome) {
     throw new ApiError(400, "Result has already been posted for this bout");
   }
 
@@ -64,10 +64,19 @@ const postBoutResult = async (id: string, payload: IPostBoutResultPayload) => {
   const updated = await prisma.bout.update({
     where: { id },
     data: {
-      winnerId: payload.winnerId,
-      result: payload.result as any,
-      isWinnerAgainstRanked: payload.isWinnerAgainstRanked ?? false,
+      outcome: {
+        create: {
+          winnerId: payload.winnerId,
+          resultType: payload.result as any,
+          isFinish: payload.isFinish ?? false,
+          isTitleFight: payload.isTitleFight ?? false,
+          isChampionVsChampion: payload.isChampionVsChampion ?? false,
+          isWinnerAgainstRanked: payload.isWinnerAgainstRanked ?? false,
+          isFiveRoundFight: payload.isFiveRoundFight ?? false,
+        },
+      },
     },
+    include: { outcome: true },
   });
 
   // Trigger scoring calculation

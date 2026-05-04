@@ -11,7 +11,7 @@ const options: swaggerJSDoc.Options = {
       contact: { name: "Gabriel" },
     },
     servers: [
-      { url: "http://localhost:4000/api/v1", description: "Development" },
+      { url: "http://localhost:5000/api/v1", description: "Development" },
     ],
     components: {
       securitySchemes: {
@@ -56,26 +56,21 @@ const options: swaggerJSDoc.Options = {
         // ── Fighter ───────────────────────────────────────────────────────
         FighterBody: {
           type: "object",
-          required: ["name", "nationality", "division"],
+          required: ["name", "nationality", "divisionId"],
           properties: {
             name:        { type: "string", example: "Jon Jones" },
             nickname:    { type: "string", example: "Bones" },
             nationality: { type: "string", example: "USA" },
-            division:    { type: "string", example: "Heavyweight" },
+            divisionId:  { type: "string", example: "clxyz123" },
             rank:        { type: "integer", example: 1 },
-            isChampion:  { type: "boolean", example: true },
+            avgL5:       { type: "integer", example: 85 },
+            bio:         { type: "string", example: "UFC Heavyweight Champion" },
             avatarUrl:   { type: "string", example: "https://cdn.example.com/fighter.jpg" },
             age:         { type: "integer", example: 36 },
             height:      { type: "string", example: "6'4\"" },
-            reach:       { type: "string", example: "84.5\"" },
             wins:        { type: "integer", example: 27 },
             losses:      { type: "integer", example: 1 },
             draws:       { type: "integer", example: 0 },
-            koWins:      { type: "integer", example: 10 },
-            submissionWins: { type: "integer", example: 6 },
-            decisionWins:   { type: "integer", example: 11 },
-            titleDefenses:  { type: "integer", example: 11 },
-            formerChampionDivisions: { type: "array", items: { type: "string" }, example: ["Light Heavyweight"] },
             isActive:    { type: "boolean", example: true },
           },
         },
@@ -127,7 +122,11 @@ const options: swaggerJSDoc.Options = {
               type: "string",
               enum: ["KO_TKO", "SUBMISSION", "DECISION_UNANIMOUS", "DECISION_SPLIT", "DECISION_MAJORITY", "DRAW", "NO_CONTEST", "DQ"],
             },
+            isFinish: { type: "boolean", example: true },
+            isTitleFight: { type: "boolean", example: true },
+            isChampionVsChampion: { type: "boolean", example: false },
             isWinnerAgainstRanked: { type: "boolean", example: true },
+            isFiveRoundFight: { type: "boolean", example: true },
           },
         },
         // ── League ────────────────────────────────────────────────────────

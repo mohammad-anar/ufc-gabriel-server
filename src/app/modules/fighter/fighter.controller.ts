@@ -4,6 +4,7 @@ import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
 import { FighterService } from "./fighter.service.js";
 import { getSingleFilePath } from "../../shared/getFilePath.js";
+import { IFighterFilterRequest, IPaginationOptions } from "./fighter.interface.js";
 
 const createFighter = catchAsync(async (req: Request, res: Response) => {
   const avatarUrl = getSingleFilePath(req.files, "image");
@@ -16,9 +17,19 @@ const createFighter = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getAllFighters = catchAsync(async (req: Request, res: Response) => {
-  const filters = pick(req.query, ["searchTerm", "divisionId", "isChampion", "isActive"]);
+  const filters = pick(req.query, [
+    "searchTerm",
+    "divisionId",
+    "isActive",
+    "nationality",
+    "minRank",
+    "maxRank",
+  ]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-  const result = await FighterService.getAllFighters(filters as any, options as any);
+  const result = await FighterService.getAllFighters(
+    filters as IFighterFilterRequest,
+    options as IPaginationOptions
+  );
   sendResponse(res, { statusCode: 200, success: true, message: "Fighters retrieved successfully", data: result });
 });
 

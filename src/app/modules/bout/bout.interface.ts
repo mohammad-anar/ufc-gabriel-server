@@ -13,5 +13,9 @@ export interface ICreateBoutPayload {
 export interface IPostBoutResultPayload {
   winnerId: string;
   result: string;
+  isFinish?: boolean;
+  isTitleFight?: boolean;
+  isChampionVsChampion?: boolean;
   isWinnerAgainstRanked?: boolean;
+  isFiveRoundFight?: boolean;
 }
