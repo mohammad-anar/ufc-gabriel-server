@@ -23,9 +23,29 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
 
   if (teamFighters.length === 0) return;
 
+  // Fetch global system scoring settings
+  const systemSettings = await prisma.systemScoringSetting.findFirst();
+
   await prisma.$transaction(async (tx) => {
     for (const tf of teamFighters) {
-      const settings = tf.team.league.scoringSettings;
+      let settings = tf.team.league.scoringSettings;
+
+      // If system settings exist, update the league's settings to stay in sync
+      if (systemSettings && settings) {
+        settings = await tx.leagueScoringSettings.update({
+          where: { id: settings.id },
+          data: {
+            winPoints: systemSettings.winPoint,
+            finishBonus: systemSettings.finishBonus,
+            winningChampionshipBout: systemSettings.winningChampionshipBout,
+            championVsChampionWin: systemSettings.championVsChampionWin,
+            winningAgainstRankedOpponent: systemSettings.winningAgainstRankedOpponent,
+            winningFiveRoundFight: systemSettings.winningFiveRoundFight,
+            systemScoringSettingId: systemSettings.id,
+          },
+        });
+      }
+
       if (!settings) continue;
 
       // Calculate points breakdown

@@ -222,21 +222,40 @@ model LeagueMember {
 }
 
 model LeagueScoringSettings {
-  id                          String @id @default(cuid())
-  leagueId                    String @unique
-  winPoints                   Int    @default(1)
-  finishBonus                 Int    @default(1)
-  winningChampionshipBout     Int    @default(1)
-  championVsChampionWin       Int    @default(1)
-  winningAgainstRankedOpponent Int    @default(1)
-  winningFiveRoundFight       Int    @default(1)
+  id                           String  @id @default(cuid())
+  leagueId                     String  @unique
+  systemScoringSettingId       String?
+  winPoints                    Int     @default(1)
+  finishBonus                  Int     @default(1)
+  winningChampionshipBout      Int     @default(1)
+  championVsChampionWin        Int     @default(1)
+  winningAgainstRankedOpponent Int     @default(1)
+  winningFiveRoundFight        Int     @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league               League                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  systemScoringSetting SystemScoringSetting? @relation(fields: [systemScoringSettingId], references: [id])
 
   @@map("league_scoring_settings")
+}
+
+model SystemScoringSetting {
+  id                           String @id @default(cuid())
+  winPoint                     Int    @default(1)
+  finishBonus                  Int    @default(1)
+  winningChampionshipBout      Int    @default(1)
+  championVsChampionWin        Int    @default(1)
+  winningAgainstRankedOpponent Int    @default(1)
+  winningFiveRoundFight        Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leagueScoringSettings LeagueScoringSettings[]
+
+  @@map("system_scoring_settings")
 }
 
 model Team {

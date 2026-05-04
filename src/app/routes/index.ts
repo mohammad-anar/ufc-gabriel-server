@@ -9,6 +9,7 @@ import { DraftRouter } from "../modules/draft/draft.route.js";
 import { TradeRouter } from "../modules/trade/trade.route.js";
 import { QueueRouter } from "../modules/queue/queue.route.js";
 import { SystemRouter } from "../modules/system/system.route.js";
+import { SystemScoreRouter } from "../modules/systemScore/systemScore.route.js";
 import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
 import { DivisionRoutes } from "../modules/division/division.route.js";
 
@@ -25,6 +26,7 @@ const moduleRoutes = [
   { path: "/trade",   route: TradeRouter },
   { path: "/queue",   route: QueueRouter },
   { path: "/system",  route: SystemRouter },
+  { path: "/system-score", route: SystemScoreRouter },
   { path: "/newsletter", route: NewsletterRoutes },
   { path: "/division", route: DivisionRoutes },
 ];
