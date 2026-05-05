@@ -38,8 +38,23 @@ const joinLeagueZodSchema = z.object({
 
 });
 
+const addFighterZodSchema = z.object({
+  body: z.object({
+    fighterId: z.string({ message: "Fighter ID is required" }),
+  }),
+});
+
+const removeFighterZodSchema = z.object({
+  body: z.object({
+    fighterId: z.string({ message: "Fighter ID is required" }),
+  }),
+});
+
 export const LeagueValidation = {
   createLeagueZodSchema,
   updateLeagueZodSchema,
   joinLeagueZodSchema,
+  addFighterZodSchema,
+  removeFighterZodSchema,
 };
+

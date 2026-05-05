@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync.js";
 import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
-import { EventService } from "./event.service.js";
-import { getSingleFilePath } from "../../shared/getFilePath.js";
+import { EventService } from "./event.service.ts";
+import { getSingleFilePath } from "../../shared/getFilePath.ts";
 
 const createEvent = catchAsync(async (req: Request, res: Response) => {
   const image = getSingleFilePath(req.files, "image");
@@ -45,4 +45,36 @@ const postResults = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Results posted successfully", data: result });
 });
 
-export const EventController = { createEvent, getAllEvents, getEventById, updateEvent, deleteEvent, postResults };
+// Merged Bout Controllers
+const createBout = catchAsync(async (req: Request, res: Response) => {
+  const result = await EventService.createBout(req.body);
+  sendResponse(res, { statusCode: 201, success: true, message: "Bout created successfully", data: result });
+});
+
+const getBoutById = catchAsync(async (req: Request, res: Response) => {
+  const result = await EventService.getBoutById(req.params.id);
+  sendResponse(res, { statusCode: 200, success: true, message: "Bout retrieved successfully", data: result });
+});
+
+const postBoutResult = catchAsync(async (req: Request, res: Response) => {
+  const result = await EventService.postBoutResult(req.params.id, req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Bout result posted and scores calculated", data: result });
+});
+
+const deleteBout = catchAsync(async (req: Request, res: Response) => {
+  const result = await EventService.deleteBout(req.params.id);
+  sendResponse(res, { statusCode: 200, success: true, message: "Bout deleted successfully", data: result });
+});
+
+export const EventController = {
+  createEvent,
+  getAllEvents,
+  getEventById,
+  updateEvent,
+  deleteEvent,
+  postResults,
+  createBout,
+  getBoutById,
+  postBoutResult,
+  deleteBout,
+};

@@ -2,7 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../helpers/prisma.js";
 import ApiError from "../../../errors/ApiError.js";
 import { paginationHelper } from "../../../helpers/paginationHelper.js";
-import { ICreateEventPayload, IEventFilterRequest } from "./event.interface.js";
+import { ICreateBoutPayload, ICreateEventPayload, IEventFilterRequest, IPostBoutResultPayload } from "./event.interface.js";
+import { calculateAndSaveScores } from "./bout.scoring.js";
+
 
 type IPaginationOptions = {
   page?: number;
@@ -14,8 +16,13 @@ type IPaginationOptions = {
 const createEvent = async (payload: ICreateEventPayload) => {
   const { bouts, ...eventData } = payload;
 
+  if (eventData.date) {
+    (eventData as any).date = new Date(eventData.date);
+  }
+
   const result = await prisma.$transaction(async (tx) => {
-    const event = await tx.event.create({ data: eventData });
+    const event = await tx.event.create({ data: eventData as any });
+
 
     if (bouts && bouts.length > 0) {
       for (const boutData of bouts) {
@@ -24,7 +31,7 @@ const createEvent = async (payload: ICreateEventPayload) => {
           data: { ...data, eventId: event.id },
         });
         await tx.boutFighter.createMany({
-          data: fighters.map((f) => ({ ...f, boutId: bout.id })),
+          data: fighters.map((f) => ({ ...f, boutId: bout.id })) as any,
         });
       }
     }
@@ -93,7 +100,8 @@ const getEventById = async (id: string) => {
     where: { id },
     include: {
       bouts: {
-        orderBy: { order: "asc" },
+        orderBy: { createdAt: "asc" },
+
         include: {
           boutFighters: { include: { fighter: true } },
           outcome: { include: { winner: true } },
@@ -105,10 +113,72 @@ const getEventById = async (id: string) => {
   return result;
 };
 
-const updateEvent = async (id: string, payload: Prisma.EventUpdateInput) => {
+const updateEvent = async (id: string, payload: any) => {
   await getEventById(id);
-  return prisma.event.update({ where: { id }, data: payload });
+  const { bouts, ...eventData } = payload;
+
+  if (eventData.date && typeof eventData.date === "string") {
+    eventData.date = new Date(eventData.date);
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Update event metadata
+    const updatedEvent = await tx.event.update({
+      where: { id },
+      data: eventData,
+    });
+
+    // 2. Handle nested bouts if provided
+    if (bouts && Array.isArray(bouts)) {
+      const payloadBoutIds = bouts.map((b: any) => b.id).filter((id) => !!id);
+
+      // Delete bouts that are no longer in the payload
+      await tx.bout.deleteMany({
+        where: {
+          eventId: id,
+          id: { notIn: payloadBoutIds },
+        },
+      });
+
+      for (const boutData of bouts) {
+        const { id: boutId, fighters, ...data } = boutData;
+
+        if (boutId) {
+          // Update existing bout
+          await tx.bout.update({
+            where: { id: boutId },
+            data: data,
+          });
+
+          // Sync fighters for existing bout
+          if (fighters && Array.isArray(fighters)) {
+            await tx.boutFighter.deleteMany({ where: { boutId } });
+            await tx.boutFighter.createMany({
+              data: fighters.map((f: any) => ({ fighterId: f.fighterId, boutId })),
+            });
+          }
+        } else {
+          // Create new bout for this event
+          const newBout = await tx.bout.create({
+            data: { ...data, eventId: id },
+          });
+
+          if (fighters && Array.isArray(fighters)) {
+            await tx.boutFighter.createMany({
+              data: fighters.map((f: any) => ({ fighterId: f.fighterId, boutId: newBout.id })),
+            });
+          }
+        }
+      }
+    }
+
+
+    return updatedEvent;
+  });
 };
+
+
+
 
 const deleteEvent = async (id: string) => {
   await getEventById(id);
@@ -123,6 +193,95 @@ const postResults = async (id: string) => {
   });
 };
 
+const checkAndCompleteEvent = async (eventId: string) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      bouts: {
+        include: { outcome: true },
+      },
+    },
+  });
+
+  if (!event) return;
+
+  // Check if all bouts have an outcome
+  const allBoutsFinished = event.bouts.length > 0 && event.bouts.every((bout) => !!bout.outcome);
+
+  if (allBoutsFinished) {
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { hasResults: true, status: "COMPLETED" },
+    });
+  }
+};
+
+// Merged Bout Methods
+const createBout = async (payload: ICreateBoutPayload) => {
+  const { fighters, ...boutData } = payload;
+  if (fighters.length !== 2) throw new ApiError(400, "Exactly 2 fighters are required per bout");
+
+  return prisma.$transaction(async (tx) => {
+    const bout = await tx.bout.create({ data: boutData });
+    await tx.boutFighter.createMany({
+      data: fighters.map((f) => ({ boutId: bout.id, ...f })) as any,
+    });
+    return tx.bout.findUnique({
+      where: { id: bout.id },
+      include: { boutFighters: { include: { fighter: true } } },
+    });
+  });
+};
+
+const getBoutById = async (id: string) => {
+  const result = await prisma.bout.findUnique({
+    where: { id },
+    include: {
+      boutFighters: { include: { fighter: true } },
+      outcome: { include: { winner: true } },
+      event: true,
+    },
+  });
+  if (!result) throw new ApiError(404, "Bout not found");
+  return result;
+};
+
+const postBoutResult = async (id: string, payload: IPostBoutResultPayload) => {
+  const bout = await getBoutById(id);
+  if (bout.outcome) throw new ApiError(400, "Result has already been posted for this bout");
+
+  const fighterIds = bout.boutFighters.map((bf) => bf.fighterId);
+  if (!fighterIds.includes(payload.winnerId)) throw new ApiError(400, "Winner must be one of the bout's fighters");
+
+  const updated = await prisma.bout.update({
+    where: { id },
+    data: {
+      outcome: {
+        create: {
+          winnerId: payload.winnerId,
+          winPoint: payload.winPoint,
+          finishBonus: payload.finishBonus,
+          winningChampionshipBout: payload.winningChampionshipBout,
+          championVsChampionWin: payload.championVsChampionWin,
+          winningAgainstRankedOpponent: payload.winningAgainstRankedOpponent,
+          winningFiveRoundFight: payload.winningFiveRoundFight,
+        },
+
+      },
+    },
+    include: { outcome: true },
+  });
+
+  await calculateAndSaveScores(id);
+  await checkAndCompleteEvent(bout.eventId);
+  return updated;
+};
+
+const deleteBout = async (id: string) => {
+  await getBoutById(id);
+  return prisma.bout.delete({ where: { id } });
+};
+
 export const EventService = {
   createEvent,
   getAllEvents,
@@ -130,4 +289,9 @@ export const EventService = {
   updateEvent,
   deleteEvent,
   postResults,
+  checkAndCompleteEvent,
+  createBout,
+  getBoutById,
+  postBoutResult,
+  deleteBout,
 };

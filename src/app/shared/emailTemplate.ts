@@ -1,5 +1,5 @@
 import config from "../../config/index.js";
-import { ICreateAccount, IResetPassword } from "../../types/emailTamplate.js";
+import { IContactEmail, ICreateAccount, IResetPassword } from "../../types/emailTamplate.js";
 
 const PRIMARY_COLOR = "#00C6CF";
 
@@ -184,8 +184,44 @@ const forgetPassword = (values: { email: string; token: string }) => {
     html: baseTemplate(content),
   };
 };
+
+// ==========================
+// 📧 CONTACT EMAIL TEMPLATE
+// ==========================
+const contactEmail = (values: IContactEmail) => {
+  const content = `
+    <h2 style="margin:0 0 20px 0; font-size:20px; color:#222;">
+      New Contact Form Message
+    </h2>
+
+    <div style="background:#f9f9f9; padding:20px; border-radius:8px; border-left:4px solid ${PRIMARY_COLOR};">
+      <p style="margin:0 0 10px 0; font-size:14px; color:#555;">
+        <strong>From:</strong> ${values.name} (${values.email})
+      </p>
+      <p style="margin:0 0 10px 0; font-size:14px; color:#555;">
+        <strong>Subject:</strong> ${values.subject}
+      </p>
+      <hr style="border:none; border-top:1px solid #eee; margin:15px 0;">
+      <p style="margin:0; font-size:15px; line-height:1.6; color:#333; white-space:pre-wrap;">
+        ${values.message}
+      </p>
+    </div>
+
+    <p style="font-size:13px; color:#999; margin-top:25px;">
+      This message was sent via the contact form on Fantasy MMA.
+    </p>
+  `;
+
+  return {
+    to: config.email.from, // Sending to admin email
+    subject: `Contact Form: ${values.subject}`,
+    html: baseTemplate(content),
+  };
+};
+
 export const emailTemplate = {
   createAccount,
   resetPassword,
   forgetPassword,
+  contactEmail,
 };

@@ -142,8 +142,9 @@ const getAllLeagues = async (
       take: limit,
       orderBy: { [sortBy]: sortOrder },
       include: {
-        _count: { select: { members: true } },
+        _count: { select: { members: true, teams: true } },
         manager: { select: { id: true, name: true, avatarUrl: true } },
+        scoringSettings: true,
       },
     }),
     prisma.league.count({ where }),
@@ -161,6 +162,140 @@ const getAllLeagues = async (
     data: sanitized,
   };
 };
+const getAdminLeagues = async (
+  filter: ILeagueFilterRequest,
+  options: IPaginationOptions
+) => {
+  const { page, limit, skip, sortBy, sortOrder } =
+    paginationHelper.calculatePagination(options);
+  const { searchTerm, ...filterData } = filter;
+
+  const andConditions: Prisma.LeagueWhereInput[] = [{ deletedAt: null }];
+
+  if (searchTerm) {
+    andConditions.push({
+      OR: ["name", "code"].map((field) => ({
+        [field]: { contains: searchTerm, mode: "insensitive" },
+      })),
+    });
+  }
+
+  // Filter by PUBLIC/PRIVATE
+  if ((filter as any).leagueType === "PUBLIC") {
+    andConditions.push({ passcode: null });
+  } else if ((filter as any).leagueType === "PRIVATE") {
+    andConditions.push({ passcode: { not: null } });
+  }
+
+  if (Object.keys(filterData).length > 0) {
+    const filters = Object.keys(filterData).map((key) => {
+      let value = (filterData as any)[key];
+      if (key === "isSystemGenerated" && typeof value === "string") {
+        value = value === "true";
+      }
+      return { [key]: { equals: value } };
+    });
+    andConditions.push({ AND: filters });
+  }
+
+
+
+  const where: Prisma.LeagueWhereInput = { AND: andConditions };
+
+  const [result, total] = await Promise.all([
+    prisma.league.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      include: {
+        manager: true,
+        scoringSettings: true,
+        teams: {
+          include: {
+            owner: true,
+            _count: { select: { teamFighters: true } },
+          },
+        },
+        draftSession: true,
+        _count: true,
+      },
+    }),
+    prisma.league.count({ where }),
+  ]);
+
+  return {
+    meta: { page, limit, total, totalPage: Math.ceil(total / limit) },
+    data: result,
+  };
+};
+
+const getAvailableLeagues = async (
+  filter: ILeagueFilterRequest,
+  options: IPaginationOptions
+) => {
+  const { page, limit, skip, sortBy, sortOrder } =
+    paginationHelper.calculatePagination(options);
+  const { searchTerm, leagueType, ...filterData } = filter;
+
+  const andConditions: Prisma.LeagueWhereInput[] = [
+    { deletedAt: null },
+    { status: "DRAFTING" },
+  ];
+
+  if (searchTerm) {
+    andConditions.push({
+      OR: ["name", "code"].map((field) => ({
+        [field]: { contains: searchTerm, mode: "insensitive" },
+      })),
+    });
+  }
+
+  if (leagueType === "PUBLIC") {
+    andConditions.push({ passcode: null });
+  } else if (leagueType === "PRIVATE") {
+    andConditions.push({ passcode: { not: null } });
+  }
+
+  if (Object.keys(filterData).length > 0) {
+    andConditions.push({
+      AND: Object.keys(filterData).map((key) => ({
+        [key]: { equals: (filterData as any)[key] },
+      })),
+    });
+  }
+
+  const where: Prisma.LeagueWhereInput = { AND: andConditions };
+
+  // Fetch with member count to filter out full leagues
+  const result = await prisma.league.findMany({
+    where,
+    orderBy: { [sortBy]: sortOrder },
+    include: {
+      _count: { select: { members: true, teams: true } },
+      manager: { select: { id: true, name: true, avatarUrl: true } },
+      scoringSettings: true,
+    },
+  });
+
+  // Filter out full leagues and apply pagination
+  const filtered = result
+    .filter((l) => l._count.members < l.memberLimit)
+    .map((l) => ({
+      ...l,
+      isPrivate: l.passcode !== null,
+      passcode: undefined,
+    }));
+
+  const paginatedData = filtered.slice(skip, skip + limit);
+  const total = filtered.length;
+
+  return {
+    meta: { page, limit, total, totalPage: Math.ceil(total / limit) },
+    data: paginatedData,
+  };
+};
+
 
 const getMyLeagues = async (userId: string) => {
   const memberships = await prisma.leagueMember.findMany({
@@ -364,6 +499,42 @@ const updateLeague = async (
   return prisma.league.update({ where: { id: leagueId }, data: payload });
 };
 
+const leaveLeague = async (leagueId: string, userId: string) => {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId, deletedAt: null },
+    include: { teams: true },
+  });
+
+  if (!league) throw new ApiError(404, "League not found");
+
+  const userTeam = await prisma.team.findUnique({
+    where: { leagueId_ownerId: { leagueId, ownerId: userId } },
+  });
+
+  if (!userTeam) throw new ApiError(404, "You don't have a team in this league");
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Delete the team (cascades to fighters, picks, etc.)
+    await tx.team.delete({ where: { id: userTeam.id } });
+
+    // 2. Delete the league membership
+    await tx.leagueMember.delete({
+      where: { leagueId_userId: { leagueId, userId } },
+    });
+
+    // 3. If the user is the manager, delete the entire league (soft delete)
+    if (league.managerId === userId) {
+      await tx.league.update({
+        where: { id: leagueId },
+        data: { deletedAt: new Date() },
+      });
+      return { message: "Left league and dissolved it (as manager)" };
+    }
+
+    return { message: "Successfully left the league" };
+  });
+};
+
 const deleteLeague = async (
   leagueId: string,
   userId: string,
@@ -382,6 +553,117 @@ const deleteLeague = async (
   });
 };
 
+
+const getAvailableFighters = async (
+  leagueId: string,
+  filter: { searchTerm?: string; divisionId?: string },
+  options: IPaginationOptions
+) => {
+  const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+
+  // Find all fighters already assigned to any team in this league
+  const assignedFighterIds = (
+    await prisma.teamFighter.findMany({
+      where: { team: { leagueId } },
+      select: { fighterId: true },
+    })
+  ).map((tf) => tf.fighterId);
+
+  const andConditions: Prisma.FighterWhereInput[] = [
+    { isActive: true },
+    { id: { notIn: assignedFighterIds } },
+  ];
+
+  if (filter.searchTerm) {
+    andConditions.push({
+      OR: ["name", "nickname"].map((field) => ({
+        [field]: { contains: filter.searchTerm, mode: "insensitive" },
+      })),
+    });
+  }
+
+  if (filter.divisionId) {
+    andConditions.push({ divisionId: filter.divisionId });
+  }
+
+  const where: Prisma.FighterWhereInput = { AND: andConditions };
+
+  const [result, total] = await Promise.all([
+    prisma.fighter.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy || "rank"]: sortOrder || "asc" },
+      include: { division: true },
+    }),
+    prisma.fighter.count({ where }),
+  ]);
+
+  return {
+    meta: { page, limit, total, totalPage: Math.ceil(total / limit) },
+    data: result,
+  };
+};
+
+const removeFighterFromTeam = async (leagueId: string, userId: string, fighterId: string) => {
+  const team = await prisma.team.findUnique({
+    where: { leagueId_ownerId: { leagueId, ownerId: userId } },
+  });
+
+  if (!team) throw new ApiError(404, "Team not found in this league");
+
+  const teamFighter = await prisma.teamFighter.findUnique({
+    where: { teamId_fighterId: { teamId: team.id, fighterId } },
+  });
+
+  if (!teamFighter) throw new ApiError(400, "The fighter is not on your team");
+
+  return prisma.$transaction(async (tx) => {
+    // Record in history
+    await tx.droppedFighter.create({
+      data: {
+        teamId: team.id,
+        fighterId,
+        pointsEarned: teamFighter.points,
+      },
+    });
+
+    // Remove from team
+    return tx.teamFighter.delete({
+      where: { teamId_fighterId: { teamId: team.id, fighterId } },
+    });
+  });
+};
+
+const addFighterToTeam = async (leagueId: string, userId: string, fighterId: string) => {
+  const team = await prisma.team.findUnique({
+    where: { leagueId_ownerId: { leagueId, ownerId: userId } },
+    include: { _count: { select: { teamFighters: true } } },
+  });
+
+  if (!team) throw new ApiError(404, "Team not found in this league");
+
+  // Check roster size
+  const league = await prisma.league.findUnique({ where: { id: leagueId } });
+  if (team._count.teamFighters >= (league?.rosterSize || 5)) {
+    throw new ApiError(400, "Your team is already at full capacity");
+  }
+
+  // Check availability
+  const isAssigned = await prisma.teamFighter.findFirst({
+    where: { team: { leagueId }, fighterId },
+  });
+  if (isAssigned) throw new ApiError(400, "This fighter is already assigned to another team");
+
+  const fighter = await prisma.fighter.findUnique({ where: { id: fighterId } });
+  if (!fighter || !fighter.isActive) throw new ApiError(404, "Fighter not found or inactive");
+
+  return prisma.teamFighter.create({
+    data: { teamId: team.id, fighterId },
+    include: { fighter: true },
+  });
+};
+
 export const LeagueService = {
   createLeague,
   getAllLeagues,
@@ -391,4 +673,12 @@ export const LeagueService = {
   joinQuickLeague,
   updateLeague,
   deleteLeague,
+  leaveLeague,
+  getAvailableFighters,
+  addFighterToTeam,
+  removeFighterFromTeam,
+  getAvailableLeagues,
+  getAdminLeagues,
 };
+
+

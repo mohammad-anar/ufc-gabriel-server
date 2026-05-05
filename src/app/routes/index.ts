@@ -2,7 +2,7 @@ import express from "express";
 import { UserRouter } from "../modules/auth/user.route.js";
 import { FighterRouter } from "../modules/fighter/fighter.route.js";
 import { EventRouter } from "../modules/event/event.route.js";
-import { BoutRouter } from "../modules/bout/bout.route.js";
+
 import { LeagueRouter } from "../modules/league/league.route.js";
 import { TeamRouter } from "../modules/team/team.route.js";
 import { DraftRouter } from "../modules/draft/draft.route.js";
@@ -13,6 +13,7 @@ import { SystemScoreRouter } from "../modules/systemScore/systemScore.route.js";
 import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
 import { DivisionRoutes } from "../modules/division/division.route.js";
 import { LegalRouter } from "app/modules/legal/legal.routes.js";
+import { ContactRoutes } from "../modules/contact/contact.route.js";
 
 const router = express.Router();
 
@@ -20,8 +21,8 @@ const moduleRoutes = [
   { path: "/auth",    route: UserRouter },
   { path: "/fighter", route: FighterRouter },
   { path: "/event",   route: EventRouter },
-  { path: "/bout",    route: BoutRouter },
   { path: "/league",  route: LeagueRouter },
+
   { path: "/team",    route: TeamRouter },
   { path: "/draft",   route: DraftRouter },
   { path: "/trade",   route: TradeRouter },
@@ -31,6 +32,7 @@ const moduleRoutes = [
   { path: "/newsletter", route: NewsletterRoutes },
   { path: "/division", route: DivisionRoutes },
   { path: "/legal", route: LegalRouter },
+  { path: "/contact", route: ContactRoutes },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

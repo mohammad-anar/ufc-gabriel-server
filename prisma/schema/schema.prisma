@@ -120,9 +120,6 @@ model Bout {
   rounds           Int      @default(3)
   isMainEvent      Boolean  @default(false)
   isCoMainEvent    Boolean  @default(false)
-  isTitleFight     Boolean  @default(false)
-  isFiveRoundFight Boolean  @default(false)
-  order            Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,20 +130,22 @@ model Bout {
   outcome      BoutOutcome?
 
   @@index([eventId])
-  @@index([eventId, order])
   @@map("bouts")
+
+
 }
 
 model BoutOutcome {
   id                    String         @id @default(cuid())
   boutId                String         @unique
-  winnerId              String
-  resultType            BoutResultType
-  isFinish              Boolean        @default(false)
-  isTitleFight          Boolean        @default(false)
-  isChampionVsChampion  Boolean        @default(false)
-  isWinnerAgainstRanked Boolean        @default(false)
-  isFiveRoundFight      Boolean        @default(false)
+  winnerId                     String
+  winPoint                     Boolean        @default(true)
+  finishBonus                  Boolean        @default(false)
+  winningChampionshipBout      Boolean        @default(false)
+  championVsChampionWin        Boolean        @default(false)
+  winningAgainstRankedOpponent Boolean        @default(false)
+  winningFiveRoundFight        Boolean        @default(false)
+
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -162,7 +161,7 @@ model BoutFighter {
   id        String @id @default(cuid())
   boutId    String
   fighterId String
-  corner    Int    // 1 = red corner, 2 = blue corner
+
 
   createdAt DateTime @default(now())
 

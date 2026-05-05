@@ -13,8 +13,25 @@ export interface ICreateEventPayload {
     rounds: number;
     isMainEvent?: boolean;
     isCoMainEvent?: boolean;
-    isTitleFight?: boolean;
-    order: number;
-    fighters: { fighterId: string; corner: number }[];
+    fighters: { fighterId: string }[];
   }[];
+}
+
+export interface ICreateBoutPayload {
+  eventId: string;
+  weightClass: string;
+  rounds?: number;
+  isMainEvent?: boolean;
+  isCoMainEvent?: boolean;
+  fighters: { fighterId: string }[];
+}
+
+export interface IPostBoutResultPayload {
+  winnerId: string;
+  winPoint: boolean;
+  finishBonus: boolean;
+  winningChampionshipBout: boolean;
+  championVsChampionWin: boolean;
+  winningAgainstRankedOpponent: boolean;
+  winningFiveRoundFight: boolean;
 }

@@ -2,7 +2,13 @@ export interface ILeagueFilterRequest {
   searchTerm?: string;
   status?: string;
   leagueType?: "PUBLIC" | "PRIVATE";
+  managerId?: string;
+  isSystemGenerated?: boolean | string;
+  code?: string;
+  fighterSearchTerm?: string;
+  divisionId?: string;
 }
+
 
 export interface ICreateLeaguePayload {
   name: string;
@@ -27,3 +33,8 @@ export interface IJoinLeaguePayload {
   passcode?: string;
   teamName: string;
 }
+
+export interface IAddFighterPayload {
+  fighterId: string;
+}
+

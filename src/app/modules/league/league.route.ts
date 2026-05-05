@@ -55,6 +55,11 @@ const router = express.Router();
  */
 router.get("/", LeagueController.getAllLeagues);
 
+router.get("/admin/all", auth(Role.ADMIN), LeagueController.getAdminLeagues);
+
+router.get("/available", LeagueController.getAvailableLeagues);
+
+
 /**
  * @swagger
  * /league/my/leagues:
@@ -181,5 +186,24 @@ router.patch(
 );
 
 router.delete("/:id", auth(Role.USER, Role.ADMIN), LeagueController.deleteLeague);
+
+router.post("/:id/leave", auth(Role.USER, Role.ADMIN), LeagueController.leaveLeague);
+
+
+router.get("/:id/available-fighters", auth(Role.USER, Role.ADMIN), LeagueController.getAvailableFighters);
+
+router.post(
+  "/:id/add-fighter",
+  auth(Role.USER, Role.ADMIN),
+  validateRequest(LeagueValidation.addFighterZodSchema),
+  LeagueController.addFighter
+);
+
+router.post(
+  "/:id/remove-fighter",
+  auth(Role.USER, Role.ADMIN),
+  validateRequest(LeagueValidation.removeFighterZodSchema),
+  LeagueController.removeFighter
+);
 
 export const LeagueRouter = router;
