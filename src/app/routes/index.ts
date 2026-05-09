@@ -14,6 +14,7 @@ import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
 import { DivisionRoutes } from "../modules/division/division.route.js";
 import { LegalRouter } from "app/modules/legal/legal.routes.js";
 import { ContactRoutes } from "../modules/contact/contact.route.js";
+import { NotificationRoutes } from "../modules/notification/notification.route.js";
 
 const router = express.Router();
 
@@ -33,6 +34,7 @@ const moduleRoutes = [
   { path: "/division", route: DivisionRoutes },
   { path: "/legal", route: LegalRouter },
   { path: "/contact", route: ContactRoutes },
+  { path: "/notification", route: NotificationRoutes },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

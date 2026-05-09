@@ -63,9 +63,32 @@ const setLastResultUpdate = async (date: Date) => {
   });
 }
 
+const getDashboardStats = async () => {
+  const [totalLeagues, totalUsers, totalFighters, newUsersLast30Days] = await Promise.all([
+    prisma.league.count({ where: { deletedAt: null } }),
+    prisma.user.count({ where: { deletedAt: null } }),
+    prisma.fighter.count({ where: { isActive: true } }),
+    prisma.user.count({
+      where: {
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
+    }),
+  ]);
+
+  return {
+    totalLeagues,
+    totalUsers,
+    totalFighters,
+    newUsersLast30Days,
+    userGrowthDelta: totalUsers > 0 ? ((newUsersLast30Days / totalUsers) * 100).toFixed(1) + "%" : "0%",
+  };
+};
+
 export const SystemService = {
   getLockdownStatus,
   enableLockdown,
   disableLockdown,
   setLastResultUpdate,
+  getDashboardStats,
 };

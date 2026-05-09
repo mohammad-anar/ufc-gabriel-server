@@ -48,4 +48,16 @@ router.post("/lockdown/enable", auth(Role.ADMIN), SystemController.enableLockdow
  */
 router.post("/lockdown/disable", auth(Role.ADMIN), SystemController.disableLockdown);
 
+/**
+ * @swagger
+ * /system/stats:
+ *   get:
+ *     tags: [System]
+ *     summary: Get dashboard statistics (Admin only)
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics
+ */
+router.get("/stats", auth(Role.ADMIN), SystemController.getDashboardStats);
+
 export const SystemRouter = router;

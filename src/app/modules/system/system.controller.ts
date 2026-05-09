@@ -33,8 +33,19 @@ const disableLockdown = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const getDashboardStats = catchAsync(async (_req: Request, res: Response) => {
+  const result = await SystemService.getDashboardStats();
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Dashboard stats retrieved successfully",
+    data: result,
+  });
+});
+
 export const SystemController = {
   getLockdownStatus,
   enableLockdown,
   disableLockdown,
+  getDashboardStats,
 };

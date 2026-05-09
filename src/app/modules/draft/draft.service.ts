@@ -4,6 +4,7 @@ import ApiError from "../../../errors/ApiError.js";
 import { paginationHelper } from "../../../helpers/paginationHelper.js";
 import { IDraftFilterRequest, IPickFighterPayload } from "./draft.interface.js";
 import { emitDraftEvent } from "../../../helpers/socketHelper.js";
+import { NotificationService } from "../notification/notification.service.js";
 
 type IPaginationOptions = {
   page?: number;
@@ -50,7 +51,7 @@ const getPickedIds = async (draftSessionId: string): Promise<string[]> =>
 
 // ─── Get Draft Session ────────────────────────────────────────────────────────
 
-const getDraftSession = async (leagueId: string) => {
+const getDraftSession = async (leagueId: string, userId?: string) => {
   const session = await prisma.draftSession.findUnique({
     where: { leagueId },
     include: {
@@ -77,7 +78,20 @@ const getDraftSession = async (leagueId: string) => {
     },
   });
   if (!session) throw new ApiError(404, "Draft session not found for this league");
-  return session;
+
+  let isAutoPickEnabled = false;
+  if (userId) {
+    const membership = await prisma.leagueMember.findUnique({
+      where: { leagueId_userId: { leagueId, userId } },
+      select: { isAutoPickEnabled: true },
+    });
+    isAutoPickEnabled = membership?.isAutoPickEnabled || false;
+  }
+
+  return { 
+    ...session, 
+    league: { ...session.league, isAutoPickEnabled } 
+  };
 };
 
 // ─── Get Available Fighters ───────────────────────────────────────────────────
@@ -237,6 +251,14 @@ const startDraft = async (
   const firstPickTeamId = result.draftOrder[0].teamId;
   scheduleDraftTimer(leagueId, firstPickTeamId, result.secondsPerPick);
 
+  // Notify admins that draft has started
+  NotificationService.notifyAdmins({
+    type: "DRAFT_STARTING",
+    title: "Draft Started",
+    message: `Draft has started for league "${league.name}".`,
+    metadata: { leagueId, draftSessionId: result.id },
+  }).catch(console.error);
+
   return result;
 };
 
@@ -370,6 +392,11 @@ const pickFighter = async (
     turnStartedAt: new Date(),
   });
 
+  // Broadcast full sync to everyone
+  getDraftSession(leagueId).then(session => {
+    emitDraftEvent(leagueId, "draft:sync", session);
+  });
+
   if (result.session.status === "COMPLETED") {
     clearDraftTimer(leagueId);
   } else {
@@ -459,6 +486,11 @@ const autoPick = async (leagueId: string, teamId: string) => {
     turnStartedAt: new Date(),
   });
 
+  // Broadcast full sync to everyone
+  getDraftSession(leagueId).then(session => {
+    emitDraftEvent(leagueId, "draft:sync", session);
+  });
+
   if (result.session.status === "COMPLETED") {
     clearDraftTimer(leagueId);
   } else {
@@ -486,10 +518,58 @@ const autoPick = async (leagueId: string, teamId: string) => {
   return result;
 };
 
+const updatePreDraft = async (leagueId: string, userId: string, fighterIds: string[]) => {
+  return await prisma.$transaction(async (tx) => {
+    // 1. Clear existing queue
+    await tx.draftPickQueue.deleteMany({
+      where: { userId, leagueId },
+    });
+
+    // 2. Add new ordered entries (Deduplicate input and use a loop for better transaction consistency)
+    const uniqueFighterIds = [...new Set(fighterIds)];
+    for (let i = 0; i < uniqueFighterIds.length; i++) {
+      await tx.draftPickQueue.create({
+        data: {
+          userId,
+          leagueId,
+          fighterId: uniqueFighterIds[i],
+          priority: i + 1,
+        },
+      });
+    }
+
+    return tx.draftPickQueue.findMany({
+      where: { userId, leagueId },
+      orderBy: { priority: "asc" },
+      include: { fighter: true },
+    });
+  });
+};
+
+const getPreDraft = async (leagueId: string, userId: string) => {
+  return prisma.draftPickQueue.findMany({
+    where: { userId, leagueId },
+    orderBy: { priority: "asc" },
+    include: { fighter: true },
+  });
+};
+
+const toggleAutoPick = async (leagueId: string, userId: string, enabled: boolean) => {
+  return prisma.leagueMember.update({
+    where: { leagueId_userId: { leagueId, userId } },
+    data: { isAutoPickEnabled: enabled },
+  });
+};
+
 export const DraftService = {
   getDraftSession,
   getAvailableFighters,
   startDraft,
   pickFighter,
   autoPick,
+  updatePreDraft,
+  getPreDraft,
+  toggleAutoPick,
 };
+
+

@@ -3,6 +3,7 @@ import catchAsync from "../../shared/catchAsync.js";
 import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
 import { LeagueService } from "./league.service.js";
+import { DraftService } from "../draft/draft.service.js";
 
 const getAdminLeagues = catchAsync(async (req: Request, res: Response) => {
   const filters = pick(req.query, ["searchTerm", "status", "managerId", "isSystemGenerated", "code", "leagueType"]);
@@ -39,7 +40,7 @@ const getMyLeagues = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getLeagueById = catchAsync(async (req: Request, res: Response) => {
-  const result = await LeagueService.getLeagueById(req.params.id);
+  const result = await LeagueService.getLeagueById(req.params.id, req.user?.id);
   sendResponse(res, { statusCode: 200, success: true, message: "League retrieved successfully", data: result });
 });
 
@@ -88,10 +89,27 @@ const leaveLeague = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Left league successfully", data: result });
 });
 
+const updatePreDraft = catchAsync(async (req: Request, res: Response) => {
+  const { orderedFighterIds } = req.body;
+  const result = await DraftService.updatePreDraft(req.params.id, req.user.id, orderedFighterIds);
+  sendResponse(res, { statusCode: 200, success: true, message: "Pre-draft list updated successfully", data: result });
+});
+
+const getPreDraft = catchAsync(async (req: Request, res: Response) => {
+  const result = await DraftService.getPreDraft(req.params.id, req.user.id);
+  sendResponse(res, { statusCode: 200, success: true, message: "Pre-draft list retrieved successfully", data: result });
+});
+
+const toggleAutoPick = catchAsync(async (req: Request, res: Response) => {
+  const { enabled } = req.body;
+  const result = await DraftService.toggleAutoPick(req.params.id, req.user.id, enabled);
+  sendResponse(res, { statusCode: 200, success: true, message: "Auto-pick status updated", data: result });
+});
 
 export const LeagueController = {
   createLeague, getAllLeagues, getMyLeagues, getLeagueById,
   joinLeague, joinQuickLeague, updateLeague, deleteLeague,
   getAvailableFighters, addFighter, removeFighter, getAvailableLeagues,
-  leaveLeague, getAdminLeagues
+  leaveLeague, getAdminLeagues, updatePreDraft, getPreDraft, toggleAutoPick
 };
+

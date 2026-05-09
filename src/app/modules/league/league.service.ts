@@ -7,6 +7,7 @@ import {
   ILeagueFilterRequest,
   IJoinLeaguePayload,
 } from "./league.interface.js";
+import { NotificationService } from "../notification/notification.service.js";
 
 type IPaginationOptions = {
   page?: number;
@@ -93,6 +94,16 @@ const createLeague = async (managerId: string, payload: ICreateLeaguePayload) =>
       include: { scoringSettings: true, draftSession: true, _count: { select: { members: true } } },
     });
   });
+
+  // Notify admins about new league
+  if (result) {
+    NotificationService.notifyAdmins({
+      type: "SYSTEM",
+      title: "New League Created",
+      message: `A new league "${result.name}" has been created by manager ${managerId}.`,
+      metadata: { leagueId: result.id, managerId },
+    }).catch(console.error); // Fire and forget
+  }
 
   return result;
 };
@@ -318,11 +329,12 @@ const getMyLeagues = async (userId: string) => {
     ...m.league,
     myTeam: m.league.teams[0] || null,
     isPrivate: m.league.passcode !== null,
+    isAutoPickEnabled: m.isAutoPickEnabled,
     passcode: undefined,
   }));
 };
 
-const getLeagueById = async (id: string) => {
+const getLeagueById = async (id: string, userId?: string) => {
   const result = await prisma.league.findUnique({
     where: { id, deletedAt: null },
     include: {
@@ -340,7 +352,17 @@ const getLeagueById = async (id: string) => {
     },
   });
   if (!result) throw new ApiError(404, "League not found");
-  return { ...result, isPrivate: result.passcode !== null, passcode: undefined };
+
+  let isAutoPickEnabled = false;
+  if (userId) {
+    const membership = await prisma.leagueMember.findUnique({
+      where: { leagueId_userId: { leagueId: id, userId } },
+      select: { isAutoPickEnabled: true },
+    });
+    isAutoPickEnabled = membership?.isAutoPickEnabled || false;
+  }
+
+  return { ...result, isPrivate: result.passcode !== null, isAutoPickEnabled, passcode: undefined };
 };
 
 const joinLeague = async (userId: string, payload: IJoinLeaguePayload) => {

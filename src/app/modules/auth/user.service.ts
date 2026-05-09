@@ -54,7 +54,12 @@ const createUser = async (payload: IRegister) => {
 
   const values = { name: result.name, otp, email: result.email };
   const template = await emailTemplate.createAccount(values);
-  await emailHelper.sendEmail(template);
+  
+  // Log OTP to console for development convenience
+  console.log(`[DEV] OTP for ${result.email}: ${otp}`);
+
+  // Don't await email sending to prevent blocking registration on SMTP issues
+  emailHelper.sendEmail(template).catch(err => console.error("Email sending failed:", err));
 
   return result;
 };
@@ -262,7 +267,12 @@ const resendOTP = async (email: string) => {
   await redisClient.set(`otp:${email}`, otp, { EX: 300 });
 
   const template = await emailTemplate.createAccount({ name: user.name, otp, email });
-  await emailHelper.sendEmail(template);
+  
+  // Log OTP to console for development convenience
+  console.log(`[DEV] Resending OTP for ${email}: ${otp}`);
+
+  // Don't await email sending to prevent blocking the request
+  emailHelper.sendEmail(template).catch(err => console.error("Email sending failed:", err));
 
   return { message: "OTP resent successfully" };
 };

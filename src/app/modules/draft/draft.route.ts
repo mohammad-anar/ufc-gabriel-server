@@ -148,4 +148,21 @@ router.post(
  */
 router.post("/:leagueId/autopick", auth(Role.ADMIN), DraftController.autoPick);
 
+router.get("/:leagueId/pre-draft", auth(Role.USER, Role.ADMIN), DraftController.getPreDraft);
+
+router.post(
+  "/:leagueId/pre-draft",
+  auth(Role.USER, Role.ADMIN),
+  validateRequest(DraftValidation.setQueueZodSchema),
+  DraftController.updatePreDraft
+);
+
+router.patch(
+  "/:leagueId/auto-pick",
+  auth(Role.USER, Role.ADMIN),
+  DraftController.toggleAutoPick
+);
+
+
 export const DraftRouter = router;
+

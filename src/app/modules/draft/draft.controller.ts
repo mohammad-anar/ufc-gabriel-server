@@ -5,7 +5,7 @@ import pick from "../../../helpers/pick.js";
 import { DraftService } from "./draft.service.js";
 
 const getDraftSession = catchAsync(async (req: Request, res: Response) => {
-  const result = await DraftService.getDraftSession(req.params.leagueId);
+  const result = await DraftService.getDraftSession(req.params.leagueId, req.user?.id);
   sendResponse(res, { statusCode: 200, success: true, message: "Draft session retrieved successfully", data: result });
 });
 
@@ -32,4 +32,32 @@ const autoPick = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Auto-pick successful", data: result });
 });
 
-export const DraftController = { getDraftSession, getAvailableFighters, startDraft, pickFighter, autoPick };
+const updatePreDraft = catchAsync(async (req: Request, res: Response) => {
+  const { orderedFighterIds } = req.body;
+  const result = await DraftService.updatePreDraft(req.params.leagueId, req.user.id, orderedFighterIds);
+  sendResponse(res, { statusCode: 200, success: true, message: "Pre-draft list updated successfully", data: result });
+});
+
+const getPreDraft = catchAsync(async (req: Request, res: Response) => {
+  const result = await DraftService.getPreDraft(req.params.leagueId, req.user.id);
+  sendResponse(res, { statusCode: 200, success: true, message: "Pre-draft list retrieved successfully", data: result });
+});
+
+const toggleAutoPick = catchAsync(async (req: Request, res: Response) => {
+  const { enabled } = req.body;
+  const result = await DraftService.toggleAutoPick(req.params.leagueId, req.user.id, enabled);
+  sendResponse(res, { statusCode: 200, success: true, message: "Auto-pick status updated", data: result });
+});
+
+export const DraftController = {
+  getDraftSession,
+  getAvailableFighters,
+  startDraft,
+  pickFighter,
+  autoPick,
+  updatePreDraft,
+  getPreDraft,
+  toggleAutoPick,
+};
+
+

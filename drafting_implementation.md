@@ -1,91 +1,186 @@
-# Draft System - Implementation Plan
+# Draft System - Comprehensive Implementation Plan
 
-This document provides a comprehensive guide for implementing the live drafting system on the frontend. The draft uses a "Snake Order" logic and real-time Socket.IO communication.
-
-## Core Concepts
-
-1.  **Snake Order**: Rounds alternate order. Round 1 is 1-8, Round 2 is 8-1, Round 3 is 1-8, and so on.
-2.  **On the Clock**: Only one team can pick at a time. A timer is associated with each pick.
-3.  **Auto-Pick**: If a user's timer expires, the system picks the best available fighter.
-4.  **Optimistic Locking**: The `version` field in the draft session prevents race conditions (e.g., two people picking the same fighter simultaneously).
+This document provides the complete technical specification for implementing the live fantasy draft on the frontend. It covers real-time Socket.IO communication, REST API integration, and the Pre-draft/Auto Pick logic.
 
 ---
 
-## 1. Socket.IO Events
+## 1. Socket.IO Specification
 
-### Client -> Server (Emits)
-- `register`: `userId: string` — Link socket to user.
-- `join_draft`: `leagueId: string` — Join the draft room.
-- `make_pick`: `{ leagueId: string, fighterId: string }` — Submit a pick.
+### A. Connection & Authentication
+1.  Connect to the socket server.
+2.  **Emit `register`**: Notify the server of your `userId` to link your session.
+    - **Payload**: `userId: string`
+    - **Example**: `socket.emit("register", "user_abcd_123");`
 
-### Server -> Client (Listeners)
-- `draft:sync`: `IDraftSession` — Full state on join.
-- `draft:started`: Emitted when the draft begins.
-- `draft:pick`: Emitted on successful pick (Manual or Auto).
-- `draft:completed`: Emitted when all roster spots are filled.
-- `draft:error`: Emitted on validation failure.
+### B. Room Management
+- **Emit `join_draft`**: Join a specific league's draft room.
+    - **Payload**: `{ "leagueId": string }`
+    - **Example**: `socket.emit("join_draft", { leagueId: "league_555" });`
+    - **Effect**: Server will respond with a `draft:sync` event containing the initial state.
+- **Emit `leave_draft`**: Leave the room.
+    - **Payload**: `{ "leagueId": string }`
+    - **Example**: `socket.emit("leave_draft", { leagueId: "league_555" });`
+
+### C. Listeners (Server -> Client)
+| Event | Payload Type | Description |
+| :--- | :--- | :--- |
+| `draft:sync` | `IDraftSession` | Full draft state sent immediately upon joining. |
+| `draft:pick` | `IPickEvent` | Broadcasted when any user makes a successful manual pick. |
+| `draft:autopick`| `IAutoPickEvent`| Broadcasted when the system makes a pick (Timer or Auto-toggle). |
+| `draft:refresh_fighters` | `{ leagueId: string }` | **New**: Broadcasted to all users when a fighter is picked to trigger a refetch of the available fighters list API. |
+| `draft:error` | `IErrorEvent` | Sent only to the user who attempted an invalid pick. |
+| `draft:completed`| `{ leagueId: string }` | Broadcasted when the final roster spot is filled. |
+
+### D. Emits (Client -> Server)
+| Event | Payload Type | Description |
+| :--- | :--- | :--- |
+| `make_pick` | `{ leagueId: string, fighterId: string }` | Request to pick a fighter. The server validates if it's your turn. |
 
 ---
 
-## 2. API Endpoints (REST)
+## 2. REST API Specification
 
-### Get Draft State
+All responses follow the standard wrapper: `{ success: boolean, message: string, data: T }`.
+
+### A. Get Draft Session State
+Fetch the full draft structure, including pick history and the specific "Snake Order" slots.
 - **URL**: `GET /draft/:leagueId`
-- **Response**: `IDraftSession`
+- **Response Data**: `IDraftSession`
+```json
+{
+  "success": true,
+  "message": "Draft session retrieved",
+  "data": {
+    "id": "draft_001",
+    "leagueId": "league_555",
+    "status": "DRAFTING",
+    "currentRound": 1,
+    "currentPickIndex": 5,
+    "secondsPerPick": 60,
+    "turnStartedAt": "2026-05-09T22:15:00Z",
+    "draftOrder": [...],
+    "draftPicks": [...]
+  }
+}
+```
 
-### Get Available Fighters
+### B. Get Available Fighters
+A paginated, filterable list of fighters **not yet picked** in this draft.
 - **URL**: `GET /draft/:leagueId/fighters`
-- **Params**: `searchTerm`, `divisionId`, `page`, `limit`.
-- **Note**: Only returns fighters not already picked in this session.
+- **Query Params**: `searchTerm`, `divisionId`, `page`, `limit`
+- **Response Data**:
+```json
+{
+  "success": true,
+  "message": "Available fighters retrieved",
+  "data": {
+    "fighters": [
+      {
+        "id": "fighter_1",
+        "name": "Israel Adesanya",
+        "rank": 2,
+        "division": "Middleweight",
+        "imageUrl": "..."
+      }
+    ],
+    "meta": { "total": 45, "page": 1, "limit": 10 }
+  }
+}
+```
 
-### Start Draft (Manager)
-- **URL**: `POST /draft/:leagueId/start`
+### C. Pre-draft Management (Queue)
+Manage your priority list before or during the draft.
+- **GET** `/league/:id/pre-draft`
+    - **Response Data**: `{ "orderedFighterIds": ["uuid1", "uuid2"] }`
+- **POST** `/league/:id/pre-draft`
+    - **Body**: `{ "orderedFighterIds": ["uuid1", "uuid2", ...] }`
+    - **Response Data**: `{ "success": true }`
+
+### D. Auto Pick Toggle
+Toggle whether the system should pick for you instantly.
+- **PATCH** `/league/:id/auto-pick`
+    - **Body**: `{ "enabled": true | false }`
+    - **Response Data**: `{ "enabled": true }`
 
 ---
 
-## 3. Data Structures
+## 3. Data Structures & Examples
 
-```typescript
-export type DraftStatus = 'WAITING' | 'DRAFTING' | 'COMPLETED';
-
-export interface IDraftSession {
-  id: string;
-  leagueId: string;
-  status: DraftStatus;
-  currentRound: number;
-  currentPickIndex: number;
-  secondsPerPick: number;
-  totalRounds: number;
-  turnStartedAt: string | null; // ISO string to sync timer
-  draftOrder: IDraftOrder[];
-  draftPicks: IDraftPick[];
+### `IDraftSession`
+```json
+{
+  "id": "cmos...",
+  "leagueId": "league_uuid",
+  "status": "DRAFTING",
+  "currentRound": 1,
+  "currentPickIndex": 5,
+  "secondsPerPick": 60,
+  "turnStartedAt": "2026-05-06T03:30:00Z",
+  "draftOrder": [
+    {
+      "overallPick": 0,
+      "round": 1,
+      "team": {
+        "id": "team_1",
+        "name": "Tokyo Warriors",
+        "owner": { "name": "Anar", "avatarUrl": "..." }
+      }
+    }
+  ],
+  "draftPicks": [
+    {
+      "pickNumber": 0,
+      "round": 1,
+      "fighter": { "id": "f_1", "name": "Conor McGregor", "rank": 1 },
+      "team": { "id": "team_1", "name": "Tokyo Warriors" }
+    }
+  ]
 }
+```
 
-export interface IDraftOrder {
-  teamId: string;
-  round: number;
-  pickPosition: number;
-  overallPick: number;
-  team: {
-    name: string;
-    owner: { name: string; avatarUrl: string };
-  };
+### `IPickEvent` / `IAutoPickEvent`
+```json
+{
+  "leagueId": "uuid",
+  "teamId": "team_uuid",
+  "fighter": { 
+    "id": "f_1", 
+    "name": "Jon Jones",
+    "imageUrl": "...",
+    "rank": 1
+  },
+  "pickIndex": 4,
+  "nextPickIndex": 5,
+  "isDraftComplete": false,
+  "turnStartedAt": "2026-05-06T03:31:00Z"
 }
+```
 
-export interface IDraftPick {
-  fighter: any;
-  team: { name: string };
-  round: number;
-  pickNumber: number;
+### `IErrorEvent`
+```json
+{
+  "message": "It is not your turn",
+  "code": "NOT_YOUR_TURN",
+  "leagueId": "uuid"
 }
 ```
 
 ---
 
-## 4. Frontend Integration Workflow
+## 4. Logic Flow: Pre-draft & Auto Pick
 
-1.  **Initialize Socket**: Connect and emit `register` followed by `join_draft`.
-2.  **Timer Sync**: Use `turnStartedAt` and `secondsPerPick` to create a local countdown.
-3.  **Active Turn**: If the `currentPick.team.ownerId` matches the logged-in user, enable the fighter selection UI.
-4.  **Pick Submission**: Emit `make_pick`. The server will validate the turn and availability.
-5.  **Snake Logic**: Note that the "Next Team" in the UI will follow the `overallPick` sequence in `draftOrder`.
+The system synchronizes your manual settings with the live draft engine:
+
+1.  **Preparation**: Users use the **Pre-draft** UI to "wishlist" players and order them by priority (Drag & Drop).
+2.  **Instant Pick**: If a user has the **Auto Pick Toggle** turned **ON**, the server processes their turn exactly **1 second** after it begins.
+3.  **Engine Logic**:
+    *   **Priority 1**: The engine checks the user's **Pre-draft** list and picks the highest-priority fighter that is still available.
+    *   **Priority 2**: If the Pre-draft list is empty or exhausted, the engine picks the **Highest Ranked** fighter from the general available pool.
+4.  **Pick Broadcast & Refresh**:
+    *   Once a pick is finalized (Manual or Auto), the server broadcasts `draft:pick` or `draft:autopick`.
+    *   **CRITICAL**: The server also broadcasts **`draft:refresh_fighters`**. 
+    *   **Frontend Action**: Upon receiving `draft:refresh_fighters`, all clients must re-trigger the `GET /draft/:leagueId/fighters` API to update their "Available Fighters" view.
+5.  **Timer Fallback**: If a user has Auto Pick **OFF** but the `secondsPerPick` timer expires:
+    *   The engine performs an Auto Pick (following the priority above).
+    *   The engine automatically sets the user's **Auto Pick Toggle to ON** for future rounds to prevent stalling.
+    *   The user can manually toggle it back to **OFF** if they return to the draft.

@@ -207,7 +207,8 @@ model LeagueMember {
   id                String  @id @default(cuid())
   leagueId          String
   userId            String
-  isAutoPickEnabled Boolean @default(false) // Set true if user misses a pick turn
+  isAutoPickEnabled Boolean @default(false) // If true, system picks instantly from pre-draft list or rank fallback
+
 
   joinedAt DateTime @default(now())
 
@@ -486,7 +487,8 @@ model DraftPickQueue {
   userId    String
   leagueId  String
   fighterId String
-  priority  Int    // Lower number = higher priority (1 = first pick)
+  priority  Int    // Order in pre-draft queue (1 = first choice, 2 = second choice, etc.)
+
 
   createdAt DateTime @default(now())
 

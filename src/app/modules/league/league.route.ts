@@ -123,7 +123,7 @@ router.post(
  *       200:
  *         description: Joined a quick league
  */
-router.post("/join-quick", auth(Role.USER, Role.ADMIN), LeagueController.joinQuickLeague);
+router.post("/quick-join", auth(Role.USER, Role.ADMIN), LeagueController.joinQuickLeague);
 
 /**
  * @swagger
@@ -206,4 +206,20 @@ router.post(
   LeagueController.removeFighter
 );
 
+// --- Pre-draft & Auto Pick ---
+router.get("/:id/pre-draft", auth(Role.USER, Role.ADMIN), LeagueController.getPreDraft);
+router.post(
+  "/:id/pre-draft",
+  auth(Role.USER, Role.ADMIN),
+  validateRequest(LeagueValidation.updatePreDraftZodSchema),
+  LeagueController.updatePreDraft
+);
+router.patch(
+  "/:id/auto-pick",
+  auth(Role.USER, Role.ADMIN),
+  validateRequest(LeagueValidation.toggleAutoPickZodSchema),
+  LeagueController.toggleAutoPick
+);
+
 export const LeagueRouter = router;
+

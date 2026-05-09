@@ -39,15 +39,19 @@ const joinLeagueZodSchema = z.object({
 });
 
 const addFighterZodSchema = z.object({
-  body: z.object({
-    fighterId: z.string({ message: "Fighter ID is required" }),
-  }),
+  fighterId: z.string({ message: "Fighter ID is required" }),
 });
 
 const removeFighterZodSchema = z.object({
-  body: z.object({
-    fighterId: z.string({ message: "Fighter ID is required" }),
-  }),
+  fighterId: z.string({ message: "Fighter ID is required" }),
+});
+
+const updatePreDraftZodSchema = z.object({
+  orderedFighterIds: z.array(z.string()),
+});
+
+const toggleAutoPickZodSchema = z.object({
+  enabled: z.boolean({ message: "Enabled status (true/false) is required" }),
 });
 
 export const LeagueValidation = {
@@ -56,5 +60,7 @@ export const LeagueValidation = {
   joinLeagueZodSchema,
   addFighterZodSchema,
   removeFighterZodSchema,
+  updatePreDraftZodSchema,
+  toggleAutoPickZodSchema,
 };
 

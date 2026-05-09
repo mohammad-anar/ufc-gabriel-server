@@ -10,9 +10,27 @@ import notFound from "./app/middlewares/notFound.js";
 
 const app: Application = express();
 
+// Simple request logger for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(
   cors({
-    origin: config.cors_origin || "http://localhost:3000",
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://10.10.7.111:3000",
+        config.frontend_url as string,
+      ];
+      if (!origin || allowedOrigins.includes(origin) || config.cors_origin === "*") {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );

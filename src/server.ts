@@ -2,6 +2,7 @@ import app from "./app.js";
 import config from "./config/index.js";
 import { seedSuperAdmin } from "./db/seedSuperAdmin.js";
 import { startDraftEngine, stopDraftEngine } from "./helpers/draftEngine.js";
+import { initSocket } from "./helpers/socketHelper.js";
 
 let server: any;
 
@@ -15,11 +16,16 @@ async function bootstrap() {
   try {
     await seedSuperAdmin();
 
-    // Start real-time draft heartbeat
-    startDraftEngine();
+    server = app.listen(config.port, "0.0.0.0", () => {
+      // Initialize Socket.io
+      initSocket(server);
 
-    server = app.listen(config.port, () => {
-      console.log(`🚀 Server running on http://localhost:${config.port}`);
+      // Start real-time draft heartbeat
+      startDraftEngine();
+
+      console.log(`🚀 Server running on port ${config.port}`);
+      console.log(`🔗 Local: http://localhost:${config.port}`);
+      console.log(`🔗 Network: http://10.10.7.111:${config.port}`);
     });
   } catch (error) {
     console.error("Error during server startup:", error);
