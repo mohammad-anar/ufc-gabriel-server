@@ -85,10 +85,112 @@ const getDashboardStats = async () => {
   };
 };
 
+const getUserActivityChart = async () => {
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    date.setHours(0, 0, 0, 0);
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const [userCount, membershipCount, tradeCount] = await Promise.all([
+      prisma.user.count({
+        where: { createdAt: { gte: date, lt: nextDate } },
+      }),
+      prisma.leagueMember.count({
+        where: { joinedAt: { gte: date, lt: nextDate } },
+      }),
+      prisma.trade.count({
+        where: { createdAt: { gte: date, lt: nextDate } },
+      }),
+    ]);
+
+    last7Days.push({
+      day: date.toLocaleDateString("en-US", { weekday: "short" }),
+      interactions: userCount + membershipCount + tradeCount,
+    });
+  }
+  return last7Days;
+};
+
+const getRecentActivity = async () => {
+  const [users, leagues, trades] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, name: true, createdAt: true },
+    }),
+    prisma.league.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { manager: { select: { name: true } } },
+    }),
+    prisma.trade.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { sender: { select: { name: true } } },
+    }),
+  ]);
+
+  const formatTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const activities = [
+    ...users.map((u) => ({
+      id: `u-${u.id}`,
+      userName: u.name,
+      action: "Joined Platform",
+      target: "User Base",
+      status: "completed" as const,
+      createdAt: u.createdAt,
+    })),
+    ...leagues.map((l) => ({
+      id: `l-${l.id}`,
+      userName: l.manager.name,
+      action: "Created League",
+      target: l.name,
+      status: "completed" as const,
+      createdAt: l.createdAt,
+    })),
+    ...trades.map((t) => ({
+      id: `t-${t.id}`,
+      userName: t.sender.name,
+      action: "Proposed Trade",
+      target: `Trade #${t.id.slice(-4)}`,
+      status: t.status.toLowerCase() === "pending" ? "pending" as const : "completed" as const,
+      createdAt: t.createdAt,
+    })),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 5)
+    .map((a) => ({
+      id: a.id,
+      userName: a.userName,
+      userInitials: a.userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2),
+      action: a.action,
+      target: a.target,
+      status: a.status,
+      timeAgo: formatTimeAgo(a.createdAt),
+    }));
+
+  return activities;
+};
+
 export const SystemService = {
   getLockdownStatus,
   enableLockdown,
   disableLockdown,
   setLastResultUpdate,
   getDashboardStats,
+  getUserActivityChart,
+  getRecentActivity,
 };

@@ -59,5 +59,7 @@ router.post("/lockdown/disable", auth(Role.ADMIN), SystemController.disableLockd
  *         description: Dashboard statistics
  */
 router.get("/stats", auth(Role.ADMIN), SystemController.getDashboardStats);
+router.get("/activity/chart", auth(Role.ADMIN), SystemController.getUserActivityChart);
+router.get("/activity/recent", auth(Role.ADMIN), SystemController.getRecentActivity);
 
 export const SystemRouter = router;

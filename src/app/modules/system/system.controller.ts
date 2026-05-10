@@ -43,9 +43,31 @@ const getDashboardStats = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const getUserActivityChart = catchAsync(async (_req: Request, res: Response) => {
+  const result = await SystemService.getUserActivityChart();
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User activity chart data retrieved successfully",
+    data: result,
+  });
+});
+
+const getRecentActivity = catchAsync(async (_req: Request, res: Response) => {
+  const result = await SystemService.getRecentActivity();
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Recent activity retrieved successfully",
+    data: result,
+  });
+});
+
 export const SystemController = {
   getLockdownStatus,
   enableLockdown,
   disableLockdown,
   getDashboardStats,
+  getUserActivityChart,
+  getRecentActivity,
 };
