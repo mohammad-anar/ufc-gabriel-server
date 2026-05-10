@@ -346,12 +346,31 @@ const getLeagueById = async (id: string, userId?: string) => {
         include: {
           owner: { select: { id: true, name: true, username: true, avatarUrl: true } },
           teamFighters: { include: { fighter: true } },
+          boutScores: true,
         },
       },
       _count: { select: { members: true } },
     },
   });
   if (!result) throw new ApiError(404, "League not found");
+
+  // Enrich all teams in the league with aggregated fighter stats
+  const enrichedTeams = result.teams.map((team) => {
+    const enrichedTeamFighters = team.teamFighters.map((tf) => {
+      const fighterScores = team.boutScores.filter((s) => s.fighterId === tf.fighterId);
+
+      return {
+        ...tf,
+        wins: fighterScores.reduce((acc, s) => acc + s.winPoints, 0),
+        championship: fighterScores.reduce((acc, s) => acc + s.championshipPoints, 0),
+        fiveRw: fighterScores.reduce((acc, s) => acc + s.fiveRoundPoints, 0),
+        rw: fighterScores.reduce((acc, s) => acc + s.rankedOpponentPoints, 0),
+        fin: fighterScores.reduce((acc, s) => acc + s.finishBonus, 0),
+        cc: fighterScores.reduce((acc, s) => acc + s.champVsChampPoints, 0),
+      };
+    });
+    return { ...team, teamFighters: enrichedTeamFighters };
+  });
 
   let isAutoPickEnabled = false;
   if (userId) {
@@ -362,7 +381,13 @@ const getLeagueById = async (id: string, userId?: string) => {
     isAutoPickEnabled = membership?.isAutoPickEnabled || false;
   }
 
-  return { ...result, isPrivate: result.passcode !== null, isAutoPickEnabled, passcode: undefined };
+  return {
+    ...result,
+    teams: enrichedTeams,
+    isPrivate: result.passcode !== null,
+    isAutoPickEnabled,
+    passcode: undefined,
+  };
 };
 
 const joinLeague = async (userId: string, payload: IJoinLeaguePayload) => {

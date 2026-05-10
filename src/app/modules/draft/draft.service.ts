@@ -14,29 +14,7 @@ type IPaginationOptions = {
 };
 
 // ─── Draft Timer State ────────────────────────────────────────────────────────
-
-const draftTimers = new Map<string, NodeJS.Timeout>();
-
-const clearDraftTimer = (leagueId: string) => {
-  if (draftTimers.has(leagueId)) {
-    clearTimeout(draftTimers.get(leagueId)!);
-    draftTimers.delete(leagueId);
-  }
-};
-
-const scheduleDraftTimer = (leagueId: string, teamId: string, seconds: number) => {
-  clearDraftTimer(leagueId);
-  const timeout = setTimeout(async () => {
-    try {
-      console.log(`[Draft Timer] Expired for league ${leagueId}. Auto-picking for team ${teamId}...`);
-      // We must call the DraftService.autoPick to handle it
-      await DraftService.autoPick(leagueId, teamId);
-    } catch (error) {
-      console.error(`[Draft Timer] Auto-pick failed for league ${leagueId}:`, error);
-    }
-  }, seconds * 1000);
-  draftTimers.set(leagueId, timeout);
-};
+// (Removed in favor of heartbeat engine in helpers/draftEngine.ts)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -249,7 +227,7 @@ const startDraft = async (
   });
 
   const firstPickTeamId = result.draftOrder[0].teamId;
-  scheduleDraftTimer(leagueId, firstPickTeamId, result.secondsPerPick);
+  // Heartbeat engine will pick up the turn started at TurnStartedAt
 
   // Notify admins that draft has started
   NotificationService.notifyAdmins({
@@ -397,27 +375,7 @@ const pickFighter = async (
     emitDraftEvent(leagueId, "draft:sync", session);
   });
 
-  if (result.session.status === "COMPLETED") {
-    clearDraftTimer(leagueId);
-  } else {
-    const nextTeamId = result.session.draftOrder[result.session.currentPickIndex]?.teamId;
-    if (nextTeamId) {
-      prisma.team.findUnique({
-        where: { id: nextTeamId },
-        select: { ownerId: true }
-      }).then((nextTeam) => {
-        if (nextTeam) {
-          prisma.leagueMember.findUnique({
-            where: { leagueId_userId: { leagueId, userId: nextTeam.ownerId } },
-            select: { isAutoPickEnabled: true }
-          }).then((member) => {
-            const waitTime = member?.isAutoPickEnabled ? 1 : result.session.secondsPerPick;
-            scheduleDraftTimer(leagueId, nextTeamId, waitTime);
-          });
-        }
-      });
-    }
-  }
+  // Removed in-memory timer calls
 
   return result;
 };
@@ -491,29 +449,7 @@ const autoPick = async (leagueId: string, teamId: string) => {
     emitDraftEvent(leagueId, "draft:sync", session);
   });
 
-  if (result.session.status === "COMPLETED") {
-    clearDraftTimer(leagueId);
-  } else {
-    const nextTeamId = result.session.draftOrder[result.session.currentPickIndex]?.teamId;
-    if (nextTeamId) {
-      // Check if the next user is also on auto-pick
-      prisma.team.findUnique({
-        where: { id: nextTeamId },
-        select: { ownerId: true }
-      }).then((nextTeam) => {
-        if (nextTeam) {
-          prisma.leagueMember.findUnique({
-            where: { leagueId_userId: { leagueId, userId: nextTeam.ownerId } },
-            select: { isAutoPickEnabled: true }
-          }).then((member) => {
-            // If they are flagged for auto-pick, schedule it instantly (1 second)
-            const waitTime = member?.isAutoPickEnabled ? 1 : result.session.secondsPerPick;
-            scheduleDraftTimer(leagueId, nextTeamId, waitTime);
-          });
-        }
-      });
-    }
-  }
+  // Removed in-memory timer calls
 
   return result;
 };
@@ -555,10 +491,17 @@ const getPreDraft = async (leagueId: string, userId: string) => {
 };
 
 const toggleAutoPick = async (leagueId: string, userId: string, enabled: boolean) => {
-  return prisma.leagueMember.update({
+  const result = await prisma.leagueMember.update({
     where: { leagueId_userId: { leagueId, userId } },
     data: { isAutoPickEnabled: enabled },
   });
+
+  // Broadcast sync to the user so their UI updates
+  getDraftSession(leagueId, userId).then(session => {
+    emitDraftEvent(leagueId, "draft:sync", session);
+  });
+
+  return result;
 };
 
 export const DraftService = {

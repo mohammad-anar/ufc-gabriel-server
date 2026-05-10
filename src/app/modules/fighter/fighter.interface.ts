@@ -26,6 +26,7 @@ export interface IFighterFilterRequest {
   nationality?: string;
   minRank?: number;
   maxRank?: number;
+  leagueId?: string;
 }
 
 export type IPaginationOptions = {

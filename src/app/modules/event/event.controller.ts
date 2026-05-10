@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync.js";
 import sendResponse from "../../shared/sendResponse.js";
 import pick from "../../../helpers/pick.js";
-import { EventService } from "./event.service.ts";
-import { getSingleFilePath } from "../../shared/getFilePath.ts";
+import { EventService } from "./event.service.js";
+import { getSingleFilePath } from "../../shared/getFilePath.js";
 
 const createEvent = catchAsync(async (req: Request, res: Response) => {
   const image = getSingleFilePath(req.files, "image");

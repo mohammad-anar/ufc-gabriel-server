@@ -114,7 +114,8 @@ const getEventById = async (id: string) => {
 };
 
 const updateEvent = async (id: string, payload: any) => {
-  await getEventById(id);
+  const event = await getEventById(id);
+  if (event.status === "COMPLETED") throw new ApiError(400, "Completed events cannot be updated");
   const { bouts, ...eventData } = payload;
 
   if (eventData.date && typeof eventData.date === "string") {
@@ -248,7 +249,8 @@ const getBoutById = async (id: string) => {
 
 const postBoutResult = async (id: string, payload: IPostBoutResultPayload) => {
   const bout = await getBoutById(id);
-  if (bout.outcome) throw new ApiError(400, "Result has already been posted for this bout");
+  // Remove the check that prevents updates:
+  // if (bout.outcome) throw new ApiError(400, "Result has already been posted for this bout");
 
   const fighterIds = bout.boutFighters.map((bf) => bf.fighterId);
   if (!fighterIds.includes(payload.winnerId)) throw new ApiError(400, "Winner must be one of the bout's fighters");
@@ -257,16 +259,26 @@ const postBoutResult = async (id: string, payload: IPostBoutResultPayload) => {
     where: { id },
     data: {
       outcome: {
-        create: {
-          winnerId: payload.winnerId,
-          winPoint: payload.winPoint,
-          finishBonus: payload.finishBonus,
-          winningChampionshipBout: payload.winningChampionshipBout,
-          championVsChampionWin: payload.championVsChampionWin,
-          winningAgainstRankedOpponent: payload.winningAgainstRankedOpponent,
-          winningFiveRoundFight: payload.winningFiveRoundFight,
+        upsert: {
+          create: {
+            winnerId: payload.winnerId,
+            winPoint: payload.winPoint,
+            finishBonus: payload.finishBonus,
+            winningChampionshipBout: payload.winningChampionshipBout,
+            championVsChampionWin: payload.championVsChampionWin,
+            winningAgainstRankedOpponent: payload.winningAgainstRankedOpponent,
+            winningFiveRoundFight: payload.winningFiveRoundFight,
+          },
+          update: {
+            winnerId: payload.winnerId,
+            winPoint: payload.winPoint,
+            finishBonus: payload.finishBonus,
+            winningChampionshipBout: payload.winningChampionshipBout,
+            championVsChampionWin: payload.championVsChampionWin,
+            winningAgainstRankedOpponent: payload.winningAgainstRankedOpponent,
+            winningFiveRoundFight: payload.winningFiveRoundFight,
+          },
         },
-
       },
     },
     include: { outcome: true },

@@ -8,30 +8,94 @@ import { prisma } from "../../../helpers/prisma.js";
 export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
   const bout = await prisma.bout.findUnique({
     where: { id: boutId },
-    include: { event: true, outcome: true },
+    include: { outcome: true, boutFighters: true },
   });
 
-  if (!bout || !bout.outcome) return;
-
-  const winnerId = bout.outcome.winnerId;
-  const outcome = bout.outcome;
-
-  // Find all team rosters that have the winning fighter
-  const teamFighters = await prisma.teamFighter.findMany({
-    where: { fighterId: winnerId },
-    include: { team: { include: { league: { include: { scoringSettings: true } } } } },
-  });
-
-  if (teamFighters.length === 0) return;
-
-  // Fetch global system scoring settings
-  const systemSettings = await prisma.systemScoringSetting.findFirst();
+  if (!bout) return;
 
   await prisma.$transaction(async (tx) => {
+    // 1. Revert previous scores and fighter stats for this bout (if any)
+    const existingScores = await tx.teamBoutScore.findMany({
+      where: { boutId },
+    });
+
+    if (existingScores.length > 0 || bout.outcome) {
+      // If we have an existing outcome, we need to revert fighter wins/losses
+      const oldOutcome = bout.outcome;
+      if (oldOutcome) {
+        const winnerId = oldOutcome.winnerId;
+        const loserId = bout.boutFighters.find(f => f.fighterId !== winnerId)?.fighterId;
+
+        // Decrement winner's wins
+        await tx.fighter.update({
+          where: { id: winnerId },
+          data: { wins: { decrement: 1 } },
+        });
+
+        // Decrement loser's losses
+        if (loserId) {
+          await tx.fighter.update({
+            where: { id: loserId },
+            data: { losses: { decrement: 1 } },
+          });
+        }
+      }
+
+      for (const score of existingScores) {
+        // Subtract from team total
+        await tx.team.update({
+          where: { id: score.teamId },
+          data: { totalPoints: { decrement: score.totalPoints } },
+        });
+
+        // Subtract from team-fighter link
+        await tx.teamFighter.updateMany({
+          where: { teamId: score.teamId, fighterId: score.fighterId },
+          data: { points: { decrement: score.totalPoints } },
+        });
+      }
+
+      // Delete old per-bout score records
+      await tx.teamBoutScore.deleteMany({
+        where: { boutId },
+      });
+    }
+
+    // 2. If no current outcome (result was cleared), we are done
+    if (!bout.outcome) return;
+
+    const winnerId = bout.outcome.winnerId;
+    const outcome = bout.outcome;
+    const loserId = bout.boutFighters.find(f => f.fighterId !== winnerId)?.fighterId;
+
+    // 3. Update overall Fighter stats
+    await tx.fighter.update({
+      where: { id: winnerId },
+      data: { wins: { increment: 1 } },
+    });
+
+    if (loserId) {
+      await tx.fighter.update({
+        where: { id: loserId },
+        data: { losses: { increment: 1 } },
+      });
+    }
+
+    // 4. Find all team rosters that have the winning fighter
+    const teamFighters = await tx.teamFighter.findMany({
+      where: { fighterId: winnerId },
+      include: { team: { include: { league: { include: { scoringSettings: true } } } } },
+    });
+
+    if (teamFighters.length === 0) return;
+
+    // Fetch global system scoring settings
+    const systemSettings = await tx.systemScoringSetting.findFirst();
+
     for (const tf of teamFighters) {
       let settings = tf.team.league.scoringSettings;
 
-      // If system settings exist, update the league's settings to stay in sync
+      // If system settings exist and league settings exist, ensure they are in sync
       if (systemSettings && settings) {
         settings = await tx.leagueScoringSettings.update({
           where: { id: settings.id },
@@ -49,15 +113,13 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
 
       if (!settings) continue;
 
-      // Calculate points breakdown based on Admin's toggles (true/false)
-      // if toggle is true, apply the league's point value, otherwise 0.
+      // Calculate points breakdown based on outcome flags
       const winPoints = outcome.winPoint ? settings.winPoints : 0;
       const finishBonus = outcome.finishBonus ? settings.finishBonus : 0;
       const championshipPoints = outcome.winningChampionshipBout ? settings.winningChampionshipBout : 0;
       const champVsChampPoints = outcome.championVsChampionWin ? settings.championVsChampionWin : 0;
       const rankedOpponentPoints = outcome.winningAgainstRankedOpponent ? settings.winningAgainstRankedOpponent : 0;
       const fiveRoundPoints = outcome.winningFiveRoundFight ? settings.winningFiveRoundFight : 0;
-
 
       const totalPoints =
         winPoints +
@@ -67,28 +129,12 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
         rankedOpponentPoints +
         fiveRoundPoints;
 
-      // Create per-bout score record
-      await tx.teamBoutScore.upsert({
-        where: {
-          teamId_boutId_fighterId: {
-            teamId: tf.teamId,
-            boutId,
-            fighterId: winnerId,
-          },
-        },
-        create: {
+      // Create new per-bout score record
+      await tx.teamBoutScore.create({
+        data: {
           teamId: tf.teamId,
           boutId,
           fighterId: winnerId,
-          winPoints,
-          finishBonus,
-          championshipPoints,
-          champVsChampPoints,
-          rankedOpponentPoints,
-          fiveRoundPoints,
-          totalPoints,
-        },
-        update: {
           winPoints,
           finishBonus,
           championshipPoints,
@@ -105,7 +151,7 @@ export const calculateAndSaveScores = async (boutId: string): Promise<void> => {
         data: { totalPoints: { increment: totalPoints } },
       });
 
-      // Track points this fighter earned while on this specific team
+      // Increment fighter's points on this specific team
       await tx.teamFighter.update({
         where: { teamId_fighterId: { teamId: tf.teamId, fighterId: winnerId } },
         data: { points: { increment: totalPoints } },

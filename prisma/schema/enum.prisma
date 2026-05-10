@@ -8,6 +8,7 @@ enum LeagueStatus {
   ACTIVE
   COMPLETED
   ARCHIVED
+  LOCKED
 }
 
 enum EventStatus {

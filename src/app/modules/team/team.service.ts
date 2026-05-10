@@ -52,12 +52,35 @@ const getLeaderboard = async (leagueId: string) => {
     orderBy: { totalPoints: "desc" },
     include: {
       owner: { select: { id: true, name: true, username: true, avatarUrl: true } },
-      _count: { select: { teamFighters: true } },
+      teamFighters: { select: { points: true, fighterId: true } },
+      boutScores: true,
     },
   });
 
-  // Assign rank positions
-  return teams.map((team, index) => ({ ...team, rank: index + 1 }));
+  // Calculate aggregated stats for each team
+  const enrichedTeams = teams.map((team, index) => {
+    const wins = team.boutScores.reduce((acc, s) => acc + s.winPoints, 0);
+    const championship = team.boutScores.reduce((acc, s) => acc + s.championshipPoints, 0);
+    const fiveRw = team.boutScores.reduce((acc, s) => acc + s.fiveRoundPoints, 0);
+    const rw = team.boutScores.reduce((acc, s) => acc + s.rankedOpponentPoints, 0);
+    const fin = team.boutScores.reduce((acc, s) => acc + s.finishBonus, 0);
+    const cc = team.boutScores.reduce((acc, s) => acc + s.champVsChampPoints, 0);
+
+    return {
+      ...team,
+      rank: index + 1,
+      stats: {
+        wins,
+        championship,
+        fiveRw,
+        rw,
+        fin,
+        cc,
+      },
+    };
+  });
+
+  return enrichedTeams;
 };
 
 const updateTeam = async (
@@ -110,10 +133,45 @@ const dropFighter = async (teamId: string, fighterId: string, ownerId: string) =
   });
 };
 
+const getMyTeamByLeague = async (userId: string, leagueId: string) => {
+  const team = await prisma.team.findFirst({
+    where: { leagueId, ownerId: userId },
+    include: {
+      league: { select: { id: true, name: true, status: true } },
+      owner: { select: { id: true, name: true, username: true, avatarUrl: true } },
+      teamFighters: {
+        include: { fighter: true },
+        orderBy: { acquiredAt: "asc" },
+      },
+      boutScores: true,
+    },
+  });
+
+  if (!team) throw new ApiError(404, "Team not found in this league");
+
+  // Calculate aggregated stats for each fighter on this team
+  const enrichedTeamFighters = team.teamFighters.map((tf) => {
+    const fighterScores = team.boutScores.filter((s) => s.fighterId === tf.fighterId);
+
+    return {
+      ...tf,
+      wins: fighterScores.reduce((acc, s) => acc + s.winPoints, 0),
+      championship: fighterScores.reduce((acc, s) => acc + s.championshipPoints, 0),
+      fiveRw: fighterScores.reduce((acc, s) => acc + s.fiveRoundPoints, 0),
+      rw: fighterScores.reduce((acc, s) => acc + s.rankedOpponentPoints, 0),
+      fin: fighterScores.reduce((acc, s) => acc + s.finishBonus, 0),
+      cc: fighterScores.reduce((acc, s) => acc + s.champVsChampPoints, 0),
+    };
+  });
+
+  return { ...team, teamFighters: enrichedTeamFighters };
+};
+
 export const TeamService = {
   getMyTeams,
   getTeamById,
   getLeaderboard,
   updateTeam,
   dropFighter,
+  getMyTeamByLeague,
 };

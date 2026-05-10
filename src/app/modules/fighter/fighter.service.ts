@@ -15,9 +15,20 @@ const getAllFighters = async (
 ) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
-  const { searchTerm, minRank, maxRank, ...filterData } = filter;
-
+  const { searchTerm, minRank, maxRank, leagueId, ...filterData } = filter;
   const andConditions: Prisma.FighterWhereInput[] = [];
+
+  if (leagueId) {
+    andConditions.push({
+      teamFighters: {
+        none: {
+          team: {
+            leagueId: leagueId,
+          },
+        },
+      },
+    });
+  }
 
   if (searchTerm) {
     andConditions.push({

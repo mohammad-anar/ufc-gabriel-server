@@ -24,6 +24,7 @@ const getAllFighters = catchAsync(async (req: Request, res: Response) => {
     "nationality",
     "minRank",
     "maxRank",
+    "leagueId",
   ]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
   const result = await FighterService.getAllFighters(

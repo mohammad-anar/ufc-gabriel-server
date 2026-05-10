@@ -23,6 +23,7 @@ const router = express.Router();
  *       200:
  *         description: List of user's teams across all leagues
  */
+router.get("/my-team", auth(Role.USER, Role.ADMIN), TeamController.getMyTeamByLeague);
 router.get("/my", auth(Role.USER, Role.ADMIN), TeamController.getMyTeams);
 
 /**

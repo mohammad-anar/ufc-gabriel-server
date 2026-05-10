@@ -213,7 +213,7 @@ const contactEmail = (values: IContactEmail) => {
   `;
 
   return {
-    to: config.email.from, // Sending to admin email
+    to: config.email.from as string, // Sending to admin email
     subject: `Contact Form: ${values.subject}`,
     html: baseTemplate(content),
   };

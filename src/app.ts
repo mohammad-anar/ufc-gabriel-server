@@ -18,19 +18,7 @@ app.use((req, res, next) => {
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://10.10.7.111:3000",
-        config.frontend_url as string,
-      ];
-      if (!origin || allowedOrigins.includes(origin) || config.cors_origin === "*") {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: "*",
     credentials: true,
   })
 );

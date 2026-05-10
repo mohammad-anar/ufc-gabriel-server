@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync.js";
 import sendResponse from "../../shared/sendResponse.js";
 import { TeamService } from "./team.service.js";
+import ApiError from "../../../errors/ApiError.js";
 
 const getMyTeams = catchAsync(async (req: Request, res: Response) => {
   const result = await TeamService.getMyTeams(req.user.id);
@@ -28,4 +29,13 @@ const dropFighter = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Fighter dropped successfully", data: result });
 });
 
-export const TeamController = { getMyTeams, getTeamById, getLeaderboard, updateTeam, dropFighter };
+const getMyTeamByLeague = catchAsync(async (req: Request, res: Response) => {
+  const leagueId = req.query.leagueId as string;
+  if (!leagueId) {
+    throw new ApiError(400, "League ID is required");
+  }
+  const result = await TeamService.getMyTeamByLeague(req.user.id, leagueId);
+  sendResponse(res, { statusCode: 200, success: true, message: "My team retrieved successfully", data: result });
+});
+
+export const TeamController = { getMyTeams, getTeamById, getLeaderboard, updateTeam, dropFighter, getMyTeamByLeague };

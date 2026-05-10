@@ -16,7 +16,7 @@ async function bootstrap() {
   try {
     await seedSuperAdmin();
 
-    server = app.listen(config.port, "0.0.0.0", () => {
+    server = app.listen(Number(config.port), "0.0.0.0", () => {
       // Initialize Socket.io
       initSocket(server);
 

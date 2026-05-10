@@ -4,6 +4,7 @@ import { getIO } from "./socketHelper.js";
 
 // Keep track of running interval
 let draftEngineInterval: NodeJS.Timeout | null = null;
+const processingLeagues = new Set<string>();
 
 export const startDraftEngine = () => {
   if (draftEngineInterval) return;
@@ -24,6 +25,7 @@ export const startDraftEngine = () => {
       });
 
       for (const session of activeDrafts) {
+        if (processingLeagues.has(session.leagueId)) continue;
         if (!session.turnStartedAt) continue;
 
         const currentOrderSlot = session.draftOrder[session.currentPickIndex];
@@ -56,13 +58,45 @@ export const startDraftEngine = () => {
               session.leagueId
             }. Picking...`
           );
-          try {
-            await DraftService.autoPick(session.leagueId, currentOrderSlot.teamId);
-          } catch (error) {
-            console.error(`Failed to auto-pick for league ${session.leagueId}:`, error);
-          }
+          processingLeagues.add(session.leagueId);
+          DraftService.autoPick(session.leagueId, currentOrderSlot.teamId)
+            .catch((error) => {
+              console.error(`Failed to auto-pick for league ${session.leagueId}:`, error);
+            })
+            .finally(() => {
+              processingLeagues.delete(session.leagueId);
+            });
         }
+      }
 
+      // ─── Auto-Start WAITING drafts that reached draftTime ───────────────────
+      // ─── Auto-Start WAITING drafts that reached draftTime ───────────────────
+      const allDraftingLeagues = await prisma.league.findMany({
+        where: { status: "DRAFTING", deletedAt: null },
+        include: { draftSession: true },
+      });
+
+      const leaguesToStart = allDraftingLeagues.filter(l => 
+        l.draftTime && 
+        new Date(l.draftTime) <= new Date() && 
+        l.draftSession?.status === "WAITING"
+      );
+
+      for (const league of leaguesToStart) {
+        if (processingLeagues.has(league.id)) continue;
+
+        console.log(`🚀 Auto-starting draft for league "${league.name}" (${league.id})...`);
+        processingLeagues.add(league.id);
+        DraftService.startDraft(league.id, league.managerId, "ADMIN")
+          .then(() => {
+            console.log(`✅ Auto-start successful for league ${league.id}`);
+          })
+          .catch((error) => {
+            console.error(`❌ Failed to auto-start draft for league ${league.id}:`, error.message || error);
+          })
+          .finally(() => {
+            processingLeagues.delete(league.id);
+          });
       }
 
     } catch (error) {
