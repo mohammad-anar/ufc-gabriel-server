@@ -34,14 +34,14 @@ const getDraftSession = async (leagueId: string, userId?: string) => {
     where: { leagueId },
     include: {
       league: {
-        select: { id: true, name: true, memberLimit: true, rosterSize: true },
+        select: { id: true, name: true, memberLimit: true, rosterSize: true, code: true },
       },
       draftOrder: {
         orderBy: { overallPick: "asc" },
         include: {
           team: {
             include: {
-              owner: { select: { id: true, name: true, avatarUrl: true } },
+              owner: { select: { id: true, name: true, avatarUrl: true, email: true } },
             },
           },
         },
@@ -49,7 +49,9 @@ const getDraftSession = async (leagueId: string, userId?: string) => {
       draftPicks: {
         orderBy: { pickedAt: "asc" },
         include: {
-          fighter: true,
+          fighter: {
+            include: { division: true }
+          },
           team: { select: { id: true, name: true } },
         },
       },
@@ -66,9 +68,43 @@ const getDraftSession = async (leagueId: string, userId?: string) => {
     isAutoPickEnabled = membership?.isAutoPickEnabled || false;
   }
 
+  // Calculate session state for the UI
+  const currentOrderSlot = session.draftOrder[session.currentPickIndex];
+  const turnStartedAt = session.turnStartedAt;
+  let secondsLeft = session.secondsPerPick;
+
+  if (turnStartedAt && session.status === "DRAFTING") {
+    const elapsed = Math.floor((new Date().getTime() - turnStartedAt.getTime()) / 1000);
+    secondsLeft = Math.max(0, session.secondsPerPick - elapsed);
+  }
+
+  // Filter unique teams from draft order
+  const uniqueTeamsMap = new Map();
+  session.draftOrder.forEach(order => {
+    if (!uniqueTeamsMap.has(order.teamId)) {
+      uniqueTeamsMap.set(order.teamId, {
+        ...order.team,
+        draftPosition: order.pickPosition
+      });
+    }
+  });
+  const teams = Array.from(uniqueTeamsMap.values());
+
   return { 
     ...session, 
-    league: { ...session.league, isAutoPickEnabled } 
+    league: { ...session.league }, // Remove isAutoPickEnabled from league to prevent broadcast issues
+    myAutoPickEnabled: userId ? isAutoPickEnabled : undefined,
+    leagueName: session.league.name,
+    leagueCode: (session.league as any).code,
+    isStarted: session.status === "DRAFTING",
+    isCompleted: session.status === "COMPLETED",
+    draftStartsAt: session.league.draftTime,
+    activeTeamId: currentOrderSlot?.teamId || null,
+    activePickLabel: currentOrderSlot ? `Pick ${currentOrderSlot.overallPick}` : "N/A",
+    roundLabel: currentOrderSlot ? `Round ${currentOrderSlot.round}` : "N/A",
+    secondsLeft,
+    picks: session.draftPicks,
+    teams
   };
 };
 
@@ -496,10 +532,8 @@ const toggleAutoPick = async (leagueId: string, userId: string, enabled: boolean
     data: { isAutoPickEnabled: enabled },
   });
 
-  // Broadcast sync to the user so their UI updates
-  getDraftSession(leagueId, userId).then(session => {
-    emitDraftEvent(leagueId, "draft:sync", session);
-  });
+  // Broadcast is NOT needed here as it's a user-specific setting.
+  // The user's frontend will refetch the session via TanStack Query onSuccess.
 
   return result;
 };
