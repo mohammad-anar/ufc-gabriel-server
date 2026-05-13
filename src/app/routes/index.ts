@@ -12,7 +12,7 @@ import { SystemRouter } from "../modules/system/system.route.js";
 import { SystemScoreRouter } from "../modules/systemScore/systemScore.route.js";
 import { NewsletterRoutes } from "../modules/newsletter/newsletter.route.js";
 import { DivisionRoutes } from "../modules/division/division.route.js";
-import { LegalRouter } from "app/modules/legal/legal.routes.js";
+import { LegalRouter } from "../modules/legal/legal.routes.js";
 import { ContactRoutes } from "../modules/contact/contact.route.js";
 import { NotificationRoutes } from "../modules/notification/notification.route.js";
 

@@ -1,49 +1,30 @@
-FROM node:20-slim AS base
+# Use official Node.js image
+FROM node:22-alpine
 
-# Install system dependencies needed for native modules & Prisma
-RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-
-# Enable corepack so pnpm is available
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# ───────────────────────────── deps stage ─────────────────────────────
-FROM base AS deps
+# Set working directory
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+# Install pnpm
+RUN npm install -g pnpm
 
-# --ignore-scripts skips the postinstall (prisma generate) hook.
+# Copy package files
+COPY package*.json pnpm-lock.yaml ./
+COPY prisma ./prisma/
+
+# Install dependencies
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# ───────────────────────────── builder stage ──────────────────────────
-FROM base AS builder
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source code
 COPY . .
 
-# Provide dummy DATABASE_URL for prisma generate
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema ./prisma/schema
+# Generate Prisma Client
+RUN DATABASE_URL="postgresql://postgres:123456@localhost:5432/fantasy_ufc?schema=public" npx prisma generate
 
-# Compile TypeScript
-RUN pnpm run build
+# Build the application
+RUN npm run build
 
-# ───────────────────────────── runner stage ───────────────────────────
-FROM base AS runner
-WORKDIR /app
+# Expose the port the app runs on
+EXPOSE 5000
 
-# Copy EVERYTHING needed for runtime from builder
-# This includes the generated Prisma client in node_modules
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY package.json ./
-
-ENV PRISMA_CLIENT_ENGINE_TYPE="library"
-ENV NODE_ENV=production
-
-EXPOSE 4000
-
-# Runtime database sync and start
-# We use db push as a fallback because of the multi-file schema path complexities
-CMD ["sh", "-c", "npx prisma db push --schema ./prisma/schema && node dist/server.js"]
+# Start the application
+CMD ["pnpm", "run", "start:prod"]

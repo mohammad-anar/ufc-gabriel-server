@@ -1,4 +1,4 @@
-import { prisma } from 'helpers/prisma.js';
+import { prisma } from '../../../helpers/prisma.js';
 import ApiError from '../../../errors/ApiError.js';
 
 const createOrUpdate = async (type: string, content: string) => {

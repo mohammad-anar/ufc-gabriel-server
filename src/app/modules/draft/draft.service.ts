@@ -34,7 +34,7 @@ const getDraftSession = async (leagueId: string, userId?: string) => {
     where: { leagueId },
     include: {
       league: {
-        select: { id: true, name: true, memberLimit: true, rosterSize: true, code: true },
+        select: { id: true, name: true, memberLimit: true, rosterSize: true, code: true, draftTime: true },
       },
       draftOrder: {
         orderBy: { overallPick: "asc" },
